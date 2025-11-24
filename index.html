@@ -3,19 +3,28 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>MemoMac</title>
+    <title>RecMind</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Share+Tech+Mono&family=Inter:wght@400;500&display=swap" rel="stylesheet">
     <style>
+      html, body {
+        background-color: transparent;
+        margin: 0;
+        padding: 0;
+      }
+
       body {
         font-family: 'Inter', sans-serif;
         background-color: transparent;
         margin: 0;
-        min-height: 100vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        padding: 0;
         overflow: hidden;
+        display: inline-block;
+      }
+
+      #root {
+        display: inline-block;
+        background-color: transparent;
       }
       
       /* Retro Scrollbar */

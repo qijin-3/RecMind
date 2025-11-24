@@ -1,5 +1,5 @@
 {
-  "name": "MemoMac",
+  "name": "RecMind",
   "description": "A lightweight, Mac-style audio recorder and note-taking app designed for meetings. Features system+mic recording, timestamped notes, and PDF export.",
   "requestFramePermissions": [
     "microphone"

@@ -1,10 +1,16 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import MacWindow from './components/MacWindow';
 import Visualizer from './components/Visualizer';
 import { useAudioRecorder } from './hooks/useAudioRecorder';
 import { Note, RecordingState } from './types';
 import { Mic, StopCircle, Play, Pause, Image as ImageIcon, Download, Plus, Pencil, Check, X, Monitor, ChevronDown, ChevronUp, Paperclip, Trash2, FileText, Music } from 'lucide-react';
 import { exportNotesToPDF } from './services/pdfService';
+
+const WINDOW_LAYOUTS = {
+  minimized: { width: 340, height: 300, minWidth: 320, minHeight: 280 },
+  default: { width: 420, height: 640, minWidth: 360, minHeight: 520 },
+  notes: { width: 520, height: 860, minWidth: 480, minHeight: 720 },
+} as const;
 
 const App = () => {
   const {
@@ -26,7 +32,7 @@ const App = () => {
   const [isNotesOpen, setIsNotesOpen] = useState(false);
 
   // Window Size State
-  const [windowSize, setWindowSize] = useState<{width: number, height: number | 'auto'}>({ width: 380, height: 'auto' });
+  const [windowSize, setWindowSize] = useState<{width: number, height: number}>({ width: WINDOW_LAYOUTS.default.width, height: WINDOW_LAYOUTS.default.height });
 
   // Config State
   const [configMic, setConfigMic] = useState(true);
@@ -41,7 +47,7 @@ const App = () => {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const notesEndRef = useRef<HTMLDivElement>(null);
-  const macWindowRef = useRef<HTMLDivElement>(null);
+  const isDesktopApp = Boolean(window.desktop);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -170,38 +176,29 @@ const App = () => {
   }, [notes, editingNoteId, isNotesOpen]);
 
   // Handle Window Size changes based on modes
-  useEffect(() => {
+  const layoutKey = useMemo<'minimized' | 'default' | 'notes'>(() => {
     if (isMinimized) {
-        setWindowSize({ width: 300, height: 'auto' });
-    } else if (isNotesOpen) {
-        setWindowSize({ width: 380, height: 800 });
-    } else {
-        setWindowSize({ width: 380, height: 'auto' });
+      return 'minimized';
     }
+    if (isNotesOpen) {
+      return 'notes';
+    }
+    return 'default';
   }, [isMinimized, isNotesOpen]);
+
+  useEffect(() => {
+    const layout = WINDOW_LAYOUTS[layoutKey];
+    setWindowSize({ width: layout.width, height: layout.height });
+
+    if (window.desktop?.send) {
+      window.desktop.send('renderer-window-layout', layout);
+    }
+  }, [layoutKey]);
 
   const hasNotes = notes.length > 0;
   const isRecordingActive = recordingState === RecordingState.RECORDING || recordingState === RecordingState.PAUSED;
   
   const toggleNotes = () => setIsNotesOpen(!isNotesOpen);
-
-  useEffect(() => {
-    if (typeof ResizeObserver === 'undefined' || !macWindowRef.current || !window.desktop?.send) {
-      return;
-    }
-
-    const target = macWindowRef.current;
-    const resizeObserver = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry) return;
-      const width = Math.ceil(entry.contentRect.width);
-      const height = Math.ceil(entry.contentRect.height);
-      window.desktop?.send('renderer-window-size', { width, height });
-    });
-
-    resizeObserver.observe(target);
-    return () => resizeObserver.disconnect();
-  }, []);
 
   // Skeuomorphic Button Component
   const RetroButton = ({ onClick, children, active, disabled, className = "", variant = "normal" }: any) => {
@@ -255,8 +252,7 @@ const App = () => {
   );
 
   return (
-    <div className="w-full h-full flex items-center justify-center">
-      
+    <>
       {/* Hidden Print Template */}
       <div id="pdf-export-content" className="fixed top-0 left-[-9999px] w-[595px] bg-white p-10 font-serif text-gray-900 pointer-events-none">
         <h1 className="text-3xl font-bold mb-4 text-gray-800 border-b-2 border-gray-800 pb-2">MEETING MINUTES</h1>
@@ -279,12 +275,11 @@ const App = () => {
         </div>
       </div>
 
-      <div ref={macWindowRef} className="inline-block">
+      <div className="inline-block">
         <MacWindow 
-          title={isMinimized ? (recordingState === RecordingState.RECORDING ? 'REC-ON' : 'MINI') : "MEMO-REC"} 
-          width={windowSize.width}
-          height={windowSize.height}
-          onResize={(w, h) => setWindowSize({ width: w, height: h })}
+          title={isMinimized ? (recordingState === RecordingState.RECORDING ? 'REC-ON' : 'MINI') : "RecMind"} 
+          width={isDesktopApp ? undefined : windowSize.width}
+          height={isDesktopApp ? undefined : windowSize.height}
           onMinimize={!isMinimized ? () => setIsMinimized(true) : undefined}
           onMaximize={isMinimized ? () => setIsMinimized(false) : undefined}
           isMinimized={isMinimized}
@@ -595,7 +590,7 @@ const App = () => {
         </div>
         </MacWindow>
       </div>
-    </div>
+    </>
   );
 };
 

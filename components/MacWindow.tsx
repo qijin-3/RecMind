@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React from 'react';
 
 interface MacWindowProps {
   children: React.ReactNode;
@@ -9,7 +9,6 @@ interface MacWindowProps {
   isMinimized?: boolean;
   width?: number;
   height?: number | 'auto';
-  onResize?: (width: number, height: number) => void;
 }
 
 const MacWindow: React.FC<MacWindowProps> = ({ 
@@ -21,61 +20,13 @@ const MacWindow: React.FC<MacWindowProps> = ({
   isMinimized = false,
   width,
   height,
-  onResize
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const handleMouseDown = (direction: 'e' | 's' | 'se', e: React.MouseEvent) => {
-    if (!onResize) return;
-    e.preventDefault();
-    e.stopPropagation();
-
-    const startX = e.clientX;
-    const startY = e.clientY;
-    
-    // Get current dimensions. If 'auto', compute from DOM.
-    const rect = containerRef.current?.getBoundingClientRect();
-    const startW = rect ? rect.width : (width || 380);
-    const startH = rect ? rect.height : (typeof height === 'number' ? height : 0);
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      let newWidth = startW;
-      let newHeight = startH;
-
-      if (direction.includes('e')) {
-        newWidth = Math.max(300, startW + (moveEvent.clientX - startX));
-      }
-      if (direction.includes('s')) {
-        // If we were auto, we are now fixed pixel height
-        newHeight = Math.max(200, startH + (moveEvent.clientY - startY));
-      }
-
-      // If we only dragged 'e' (width), preserve current height (which might be 'auto')
-      // If direction is 'e', pass current height prop if it's 'auto', or new calculated height if we are resizing height too.
-      const finalH = direction === 'e' ? height || 'auto' : newHeight;
-      const finalW = direction === 's' ? width || 380 : newWidth;
-
-      // Type cast to satisfy strict number requirement for calculations, 
-      // but callback needs to handle 'auto' logic if we implemented that in parent. 
-      // Here we convert to numbers for resizing.
-      onResize(finalW as number, finalH as number);
-    };
-
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  };
 
   return (
     <div 
-      ref={containerRef}
       style={{ 
-        width: width ? `${width}px` : undefined, 
-        height: height === 'auto' ? 'auto' : `${height}px` 
+        width: typeof width === 'number' ? `${width}px` : undefined, 
+        height: height === 'auto' ? 'auto' : typeof height === 'number' ? `${height}px` : undefined 
       }}
       className={`relative flex flex-col transition-all duration-200 ease-out ${className}`}
     >
@@ -126,37 +77,6 @@ const MacWindow: React.FC<MacWindowProps> = ({
         </div>
       </div>
 
-      {/* Resize Handles (Only if onResize provided) */}
-      {onResize && !isMinimized && (
-        <>
-          {/* Right Edge */}
-          <div 
-            className="absolute top-4 bottom-4 -right-1 w-4 cursor-e-resize z-50 group flex items-center justify-center"
-            onMouseDown={(e) => handleMouseDown('e', e)}
-          >
-             {/* Invisible hit area but visible tooltip/effect could go here */}
-          </div>
-
-          {/* Bottom Edge */}
-          <div 
-            className="absolute -bottom-1 left-4 right-4 h-4 cursor-s-resize z-50 group"
-            onMouseDown={(e) => handleMouseDown('s', e)}
-          />
-
-          {/* Bottom Right Corner (Grip) */}
-          <div 
-            className="absolute -bottom-1 -right-1 w-6 h-6 cursor-se-resize z-50 flex items-end justify-end pr-1 pb-1"
-            onMouseDown={(e) => handleMouseDown('se', e)}
-          >
-             {/* Visual Grip Lines */}
-             <div className="w-full h-full relative overflow-hidden rounded-br-xl">
-                <div className="absolute bottom-[4px] right-[4px] w-[1px] h-[8px] bg-gray-500 rotate-45" />
-                <div className="absolute bottom-[4px] right-[7px] w-[1px] h-[12px] bg-gray-500 rotate-45" />
-                <div className="absolute bottom-[4px] right-[10px] w-[1px] h-[16px] bg-gray-500 rotate-45" />
-             </div>
-          </div>
-        </>
-      )}
     </div>
   );
 };

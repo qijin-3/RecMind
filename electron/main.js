@@ -6,7 +6,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const IS_DEV = process.env.NODE_ENV === 'development' || !app.isPackaged;
 const DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:3000';
 const WINDOW_WIDTH = 420;
-const WINDOW_HEIGHT = 720;
+const WINDOW_HEIGHT = 420;
+const WINDOW_MIN_WIDTH = 420;
+const WINDOW_MIN_HEIGHT = 420;
 const APP_NAME = 'RecMind';
 
 app.setName(APP_NAME);
@@ -20,10 +22,10 @@ function createMainWindow() {
   const window = new BrowserWindow({
     width: WINDOW_WIDTH,
     height: WINDOW_HEIGHT,
-    minWidth: WINDOW_WIDTH,
-    minHeight: WINDOW_HEIGHT,
+    minWidth: WINDOW_MIN_WIDTH,
+    minHeight: WINDOW_MIN_HEIGHT,
     useContentSize: true,
-    resizable: false,
+    resizable: true,
     frame: false,
     transparent: true,
     fullscreenable: false,
@@ -85,13 +87,24 @@ function registerAppEventHandlers() {
  * 注册渲染进程可用的 IPC 事件，用于根据内容尺寸动态调整窗口。
  */
 function registerIpcHandlers() {
-  ipcMain.on('renderer-window-size', (_event, payload) => {
+  ipcMain.on('renderer-window-layout', (_event, payload) => {
     if (!mainWindow || mainWindow.isDestroyed()) {
       return;
     }
-    const width = Math.max(320, Math.round(payload?.width ?? WINDOW_WIDTH));
-    const height = Math.max(400, Math.round(payload?.height ?? WINDOW_HEIGHT));
-    mainWindow.setContentSize(width, height);
+
+    const requestedMinWidth = Math.round(payload?.minWidth ?? WINDOW_MIN_WIDTH);
+    const requestedMinHeight = Math.round(payload?.minHeight ?? WINDOW_MIN_HEIGHT);
+    const minWidth = Math.max(WINDOW_MIN_WIDTH, requestedMinWidth);
+    const minHeight = Math.max(WINDOW_MIN_HEIGHT, requestedMinHeight);
+    mainWindow.setMinimumSize(minWidth, minHeight);
+
+    const targetWidth = payload?.width;
+    const targetHeight = payload?.height;
+    if (typeof targetWidth === 'number' && typeof targetHeight === 'number') {
+      const safeWidth = Math.max(minWidth, Math.round(targetWidth));
+      const safeHeight = Math.max(minHeight, Math.round(targetHeight));
+      mainWindow.setContentSize(safeWidth, safeHeight);
+    }
   });
 }
 
