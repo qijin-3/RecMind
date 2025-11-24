@@ -91,12 +91,12 @@ const MacWindow: React.FC<MacWindowProps> = ({
         
         {/* Retro Header / Faceplate Top */}
         <div 
-          className="h-10 bg-gradient-to-b from-[#e5e7eb] to-[#d1d5db] border-b border-gray-400 flex items-center justify-between px-3 select-none shrink-0 shadow-sm"
+          className="h-10 bg-gradient-to-b from-[#e5e7eb] to-[#d1d5db] border-b border-gray-400 flex items-center justify-between px-3 select-none shrink-0 shadow-sm drag-region"
           onDoubleClick={onMaximize}
         >
           
           {/* Jewel Buttons */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 no-drag">
             <div className="w-3.5 h-3.5 rounded-full bg-red-500 border border-red-700 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.5),1px_1px_1px_rgba(0,0,0,0.2)]" />
             <div 
               onClick={onMinimize}

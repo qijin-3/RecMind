@@ -41,6 +41,7 @@ const App = () => {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const notesEndRef = useRef<HTMLDivElement>(null);
+  const macWindowRef = useRef<HTMLDivElement>(null);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -184,6 +185,24 @@ const App = () => {
   
   const toggleNotes = () => setIsNotesOpen(!isNotesOpen);
 
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined' || !macWindowRef.current || !window.desktop?.send) {
+      return;
+    }
+
+    const target = macWindowRef.current;
+    const resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const width = Math.ceil(entry.contentRect.width);
+      const height = Math.ceil(entry.contentRect.height);
+      window.desktop?.send('renderer-window-size', { width, height });
+    });
+
+    resizeObserver.observe(target);
+    return () => resizeObserver.disconnect();
+  }, []);
+
   // Skeuomorphic Button Component
   const RetroButton = ({ onClick, children, active, disabled, className = "", variant = "normal" }: any) => {
     const baseStyles = "relative transition-all active:top-[1px] disabled:opacity-50 disabled:active:top-0 disabled:cursor-not-allowed flex items-center justify-center";
@@ -236,7 +255,7 @@ const App = () => {
   );
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="w-full h-full flex items-center justify-center">
       
       {/* Hidden Print Template */}
       <div id="pdf-export-content" className="fixed top-0 left-[-9999px] w-[595px] bg-white p-10 font-serif text-gray-900 pointer-events-none">
@@ -260,15 +279,16 @@ const App = () => {
         </div>
       </div>
 
-      <MacWindow 
-        title={isMinimized ? (recordingState === RecordingState.RECORDING ? 'REC-ON' : 'MINI') : "MEMO-REC"} 
-        width={windowSize.width}
-        height={windowSize.height}
-        onResize={(w, h) => setWindowSize({ width: w, height: h })}
-        onMinimize={!isMinimized ? () => setIsMinimized(true) : undefined}
-        onMaximize={isMinimized ? () => setIsMinimized(false) : undefined}
-        isMinimized={isMinimized}
-      >
+      <div ref={macWindowRef} className="inline-block">
+        <MacWindow 
+          title={isMinimized ? (recordingState === RecordingState.RECORDING ? 'REC-ON' : 'MINI') : "MEMO-REC"} 
+          width={windowSize.width}
+          height={windowSize.height}
+          onResize={(w, h) => setWindowSize({ width: w, height: h })}
+          onMinimize={!isMinimized ? () => setIsMinimized(true) : undefined}
+          onMaximize={isMinimized ? () => setIsMinimized(false) : undefined}
+          isMinimized={isMinimized}
+        >
         {/* Main Interface Wrapper (Vertical Layout) */}
         <div className="flex-1 bg-[#d4d4d8] flex flex-col h-full relative overflow-hidden">
             
@@ -573,7 +593,8 @@ const App = () => {
                 </div>
             )}
         </div>
-      </MacWindow>
+        </MacWindow>
+      </div>
     </div>
   );
 };
