@@ -7,10 +7,13 @@ interface MacWindowProps {
   onMinimize?: () => void;
   onMaximize?: () => void;
   isMinimized?: boolean;
-  width?: number;
-  height?: number | 'auto';
+  width?: number | string;
+  height?: number | 'auto' | string;
 }
 
+/**
+ * MacWindow 组件用于模拟复古 Mac 外壳，并承载应用内容。
+ */
 const MacWindow: React.FC<MacWindowProps> = ({ 
   children, 
   title, 
@@ -21,12 +24,22 @@ const MacWindow: React.FC<MacWindowProps> = ({
   width,
   height,
 }) => {
+  const resolvedWidth = typeof width === 'number' ? `${width}px` : width;
+  let resolvedHeight: string | undefined;
+
+  if (typeof height === 'number') {
+    resolvedHeight = `${height}px`;
+  } else if (height === 'auto') {
+    resolvedHeight = 'auto';
+  } else {
+    resolvedHeight = height;
+  }
 
   return (
     <div 
       style={{ 
-        width: typeof width === 'number' ? `${width}px` : undefined, 
-        height: height === 'auto' ? 'auto' : typeof height === 'number' ? `${height}px` : undefined 
+        width: resolvedWidth, 
+        height: resolvedHeight
       }}
       className={`relative flex flex-col transition-all duration-200 ease-out ${className}`}
     >
