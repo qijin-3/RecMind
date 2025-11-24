@@ -4,8 +4,9 @@ interface MacWindowProps {
   children: React.ReactNode;
   title?: string;
   className?: string;
+  onClose?: () => void;
   onMinimize?: () => void;
-  onMaximize?: () => void;
+  onFullscreen?: () => void;
   isMinimized?: boolean;
   width?: number | string;
   height?: number | 'auto' | string;
@@ -18,8 +19,9 @@ const MacWindow: React.FC<MacWindowProps> = ({
   children, 
   title, 
   className = "", 
+  onClose,
   onMinimize,
-  onMaximize,
+  onFullscreen,
   isMinimized = false,
   width,
   height,
@@ -56,31 +58,40 @@ const MacWindow: React.FC<MacWindowProps> = ({
         {/* Retro Header / Faceplate Top */}
         <div 
           className="h-10 bg-gradient-to-b from-[#e5e7eb] to-[#d1d5db] border-b border-gray-400 flex items-center justify-between px-3 select-none shrink-0 shadow-sm drag-region"
-          onDoubleClick={onMaximize}
+          onDoubleClick={onFullscreen}
         >
           
           {/* Jewel Buttons */}
           <div className="flex items-center gap-2.5 no-drag">
-            <div className="w-3.5 h-3.5 rounded-full bg-red-500 border border-red-700 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.5),1px_1px_1px_rgba(0,0,0,0.2)]" />
-            <div 
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close window"
+              className={`w-3.5 h-3.5 rounded-full bg-red-500 border border-red-700 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.5),1px_1px_1px_rgba(0,0,0,0.2)] ${onClose ? 'cursor-pointer active:brightness-90' : 'opacity-50 cursor-not-allowed'}`}
+            >
+              <span className="sr-only">close</span>
+            </button>
+            <button
+              type="button"
               onClick={onMinimize}
-              className={`w-3.5 h-3.5 rounded-full bg-yellow-400 border border-yellow-600 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.5),1px_1px_1px_rgba(0,0,0,0.2)] ${onMinimize ? 'cursor-pointer active:brightness-90' : 'opacity-50'}`} 
-            />
-            <div 
-              onClick={onMaximize}
-              className={`w-3.5 h-3.5 rounded-full bg-green-500 border border-green-700 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.5),1px_1px_1px_rgba(0,0,0,0.2)] ${onMaximize ? 'cursor-pointer active:brightness-90' : 'opacity-50'}`} 
-            />
+              aria-label="Minimize window"
+              className={`w-3.5 h-3.5 rounded-full bg-yellow-400 border border-yellow-600 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.5),1px_1px_1px_rgba(0,0,0,0.2)] ${onMinimize ? 'cursor-pointer active:brightness-90' : 'opacity-50 cursor-not-allowed'}`}
+            >
+              <span className="sr-only">minimize</span>
+            </button>
+            <button
+              type="button"
+              onClick={onFullscreen}
+              aria-label="Toggle fullscreen"
+              className={`w-3.5 h-3.5 rounded-full bg-green-500 border border-green-700 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.5),1px_1px_1px_rgba(0,0,0,0.2)] ${onFullscreen ? 'cursor-pointer active:brightness-90' : 'opacity-50 cursor-not-allowed'}`}
+            >
+              <span className="sr-only">fullscreen</span>
+            </button>
           </div>
 
           {/* Engraved Title */}
           <div className="font-['Share_Tech_Mono'] text-gray-500 text-xs tracking-[0.2em] uppercase text-shadow-engraved cursor-default">
             {title || 'RECORDER-3000'}
-          </div>
-
-          {/* Screw decoration */}
-          <div className="w-2.5 h-2.5 rounded-full bg-gray-300 border border-gray-400 shadow-inner flex items-center justify-center transform rotate-45">
-             <div className="w-full h-[1px] bg-gray-400" />
-             <div className="h-full w-[1px] bg-gray-400 absolute" />
           </div>
         </div>
         

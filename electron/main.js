@@ -28,9 +28,9 @@ function createMainWindow() {
     resizable: true,
     frame: false,
     transparent: true,
-    fullscreenable: false,
-    maximizable: false,
-    minimizable: false,
+    fullscreenable: true,
+    maximizable: true,
+    minimizable: true,
     hasShadow: false,
     title: APP_NAME,
     backgroundColor: '#00000000',
@@ -106,6 +106,34 @@ function registerIpcHandlers() {
       mainWindow.setContentSize(safeWidth, safeHeight);
     }
   });
+
+  ipcMain.on('window-control', (_event, payload) => {
+    handleRendererWindowControl(payload?.action);
+  });
+}
+
+/**
+ * 根据渲染进程请求执行窗口控制动作。
+ * @param {'close' | 'minimize' | 'toggle-fullscreen'} action
+ */
+function handleRendererWindowControl(action) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  switch (action) {
+    case 'close':
+      mainWindow.close();
+      break;
+    case 'minimize':
+      mainWindow.minimize();
+      break;
+    case 'toggle-fullscreen':
+      mainWindow.setFullScreen(!mainWindow.isFullScreen());
+      break;
+    default:
+      break;
+  }
 }
 
 app.whenReady()

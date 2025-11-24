@@ -48,6 +48,61 @@ const App = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const notesEndRef = useRef<HTMLDivElement>(null);
   const isDesktopApp = Boolean(window.desktop);
+  type WindowControlAction = 'close' | 'minimize' | 'toggle-fullscreen';
+
+  /**
+   * 根据目标动作向 Electron 主进程发送窗口控制请求。
+   */
+  const dispatchDesktopWindowAction = (action: WindowControlAction) => {
+    if (window.desktop?.send) {
+      window.desktop.send('window-control', { action });
+    }
+  };
+
+  /**
+   * 触发关闭窗口；在浏览器环境下退回默认行为。
+   */
+  const handleWindowClose = () => {
+    if (isDesktopApp) {
+      dispatchDesktopWindowAction('close');
+      return;
+    }
+    window.close();
+  };
+
+  /**
+   * 触发最小化：桌面环境交由主进程，Web 环境退回到组件自身的最小化状态。
+   */
+  const handleWindowMinimize = () => {
+    if (isDesktopApp) {
+      dispatchDesktopWindowAction('minimize');
+      return;
+    }
+    setIsMinimized(true);
+  };
+
+  /**
+   * 触发全屏：桌面环境切换 Fullscreen，Web 环境尝试调用浏览器 Fullscreen API。
+   */
+  const handleWindowFullscreen = async () => {
+    if (!isDesktopApp && isMinimized) {
+      setIsMinimized(false);
+      return;
+    }
+    if (isDesktopApp) {
+      dispatchDesktopWindowAction('toggle-fullscreen');
+      return;
+    }
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch (error) {
+      console.warn('Fullscreen toggle failed:', error);
+    }
+  };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -251,13 +306,14 @@ const App = () => {
     </div>
   );
 
-  const macWindowElement = (
+  npm run desktop:dev  const macWindowElement = (
     <MacWindow 
       title={isMinimized ? (recordingState === RecordingState.RECORDING ? 'REC-ON' : 'MINI') : "RecMind"} 
       width={isDesktopApp ? '100%' : windowSize.width}
       height={isDesktopApp ? '100%' : windowSize.height}
-      onMinimize={!isMinimized ? () => setIsMinimized(true) : undefined}
-      onMaximize={isMinimized ? () => setIsMinimized(false) : undefined}
+      onClose={handleWindowClose}
+      onMinimize={!isMinimized ? handleWindowMinimize : undefined}
+      onFullscreen={handleWindowFullscreen}
       isMinimized={isMinimized}
       className={isDesktopApp ? 'w-full h-full' : ''}
     >
