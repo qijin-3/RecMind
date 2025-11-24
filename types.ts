@@ -16,3 +16,18 @@ export interface AudioDeviceConfig {
   micId?: string;
   includeSystemAudio: boolean;
 }
+
+declare global {
+  interface DesktopBridge {
+    platform: NodeJS.Platform;
+    version: string;
+    send: (channel: string, payload?: unknown) => void;
+    on: (channel: string, listener: (...args: unknown[]) => void) => () => void;
+  }
+
+  interface Window {
+    desktop?: DesktopBridge;
+  }
+}
+
+export {};

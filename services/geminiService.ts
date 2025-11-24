@@ -1,7 +1,19 @@
-import { GoogleGenAI } from "@google/genai";
 import { Note } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+/**
+ * 初始化 Gemini AI 客户端
+ * 使用动态导入以避免浏览器环境中的 require 错误
+ */
+let aiInstance: any = null;
+
+const getAIInstance = async () => {
+  if (!aiInstance) {
+    const { GoogleGenAI } = await import("@google/genai");
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY || process.env.API_KEY;
+    aiInstance = new GoogleGenAI({ apiKey });
+  }
+  return aiInstance;
+};
 
 export const summarizeNotes = async (notes: Note[]): Promise<string> => {
   if (notes.length === 0) return "No notes to summarize.";
@@ -21,6 +33,7 @@ export const summarizeNotes = async (notes: Note[]): Promise<string> => {
   `;
 
   try {
+    const ai = await getAIInstance();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
