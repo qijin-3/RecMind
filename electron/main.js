@@ -105,6 +105,18 @@ function registerIpcHandlers() {
       const safeHeight = Math.max(minHeight, Math.round(targetHeight));
       mainWindow.setContentSize(safeWidth, safeHeight);
     }
+
+    if (typeof payload?.resizable === 'boolean') {
+      mainWindow.setResizable(payload.resizable);
+      mainWindow.setMaximizable(payload.resizable);
+    }
+
+    if (typeof payload?.fullscreenable === 'boolean') {
+      mainWindow.setFullScreenable(payload.fullscreenable);
+      if (!payload.fullscreenable && mainWindow.isFullScreen()) {
+        mainWindow.setFullScreen(false);
+      }
+    }
   });
 
   ipcMain.on('window-control', (_event, payload) => {

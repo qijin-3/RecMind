@@ -5,12 +5,16 @@ import { useAudioRecorder } from './hooks/useAudioRecorder';
 import { Note, RecordingState } from './types';
 import { Mic, StopCircle, Play, Pause, Image as ImageIcon, Download, Plus, Pencil, Check, X, Monitor, ChevronDown, ChevronUp, Paperclip, Trash2, FileText, Music } from 'lucide-react';
 import { exportNotesToPDF } from './services/pdfService';
+import lamejs from 'lamejs';
 
 const WINDOW_LAYOUTS = {
   minimized: { width: 340, height: 300, minWidth: 320, minHeight: 280 },
   default: { width: 420, height: 640, minWidth: 360, minHeight: 520 },
   notes: { width: 520, height: 860, minWidth: 480, minHeight: 720 },
 } as const;
+
+const PRE_RECORD_WINDOW = { width: 400, height: 400, minWidth: 400, minHeight: 400 };
+const INVALID_FILENAME_CHARS = /[<>:"/\\|?*\x00-\x1F]/g;
 
 const App = () => {
   const {
@@ -104,10 +108,110 @@ const App = () => {
     }
   };
 
+  /**
+   * 将秒数格式化为 mm:ss 字符串。
+   */
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  /**
+   * 构造跨平台安全的文件名，自动追加扩展名。
+   */
+  const buildSafeFileName = (base: string, extension: string) => {
+    const sanitizedBase = base
+      .replace(INVALID_FILENAME_CHARS, '_')
+      .replace(/\s+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '') || 'RecMind';
+    return `${sanitizedBase}.${extension}`;
+  };
+
+  /**
+   * 将多声道音频混合为单声道，保证 MP3 编码兼容性。
+   */
+  const mixToMonoChannel = (buffer: AudioBuffer) => {
+    if (buffer.numberOfChannels === 1) {
+      return buffer.getChannelData(0);
+    }
+    const output = new Float32Array(buffer.length);
+    for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
+      const channelData = buffer.getChannelData(channel);
+      for (let i = 0; i < buffer.length; i++) {
+        output[i] += channelData[i] / buffer.numberOfChannels;
+      }
+    }
+    return output;
+  };
+
+  /**
+   * 将 Float32 PCM 数据转换为 Int16，以便交给 lamejs。
+   */
+  const convertFloat32ToInt16 = (buffer: Float32Array) => {
+    const length = buffer.length;
+    const result = new Int16Array(length);
+    for (let i = 0; i < length; i++) {
+      const sample = Math.max(-1, Math.min(1, buffer[i]));
+      result[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+    }
+    return result;
+  };
+
+  /**
+   * 将录制得到的 Blob 转换为 MP3 Blob。
+   */
+  const convertAudioBlobToMp3 = async (blob: Blob) => {
+    const arrayBuffer = await blob.arrayBuffer();
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) {
+      throw new Error('AudioContext not supported');
+    }
+    const audioContext = new AudioCtx();
+    try {
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+      const monoData = mixToMonoChannel(audioBuffer);
+      const pcm16 = convertFloat32ToInt16(monoData);
+      const mp3Encoder = new lamejs.Mp3Encoder(1, audioBuffer.sampleRate, 128);
+      const blockSize = 1152;
+      const mp3Chunks: BlobPart[] = [];
+
+      for (let i = 0; i < pcm16.length; i += blockSize) {
+        const chunk = pcm16.subarray(i, Math.min(i + blockSize, pcm16.length));
+        const mp3Buffer = mp3Encoder.encodeBuffer(chunk);
+        if (mp3Buffer.length > 0) {
+          const copyView = new Uint8Array(mp3Buffer.length);
+          copyView.set(mp3Buffer);
+          mp3Chunks.push(copyView.buffer);
+        }
+      }
+
+      const flushBuffer = mp3Encoder.flush();
+      if (flushBuffer.length > 0) {
+        const copyView = new Uint8Array(flushBuffer.length);
+        copyView.set(flushBuffer);
+        mp3Chunks.push(copyView.buffer);
+      }
+
+      return new Blob(mp3Chunks, { type: 'audio/mpeg' });
+    } finally {
+      await audioContext.close();
+    }
+  };
+
+  /**
+   * 统一处理 Blob 下载，避免重复的锚点创建代码。
+   */
+  const triggerBlobDownload = (blob: Blob, fileName: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const handleStart = async () => {
@@ -182,30 +286,47 @@ const App = () => {
     }
   };
 
-  const handleExport = () => {
-    exportNotesToPDF('pdf-export-content', `Meeting Notes - ${new Date().toLocaleDateString()}`);
-  };
-
-  const handleDownloadAudio = () => {
-    if (audioBlob) {
-      const url = URL.createObjectURL(audioBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `recording-${new Date().getTime()}.webm`;
-      a.click();
-      URL.revokeObjectURL(url);
+  /**
+   * 导出当前笔记列表为 PDF 文件。
+   */
+  const handleExport = async () => {
+    try {
+      const { blob, fileName } = await exportNotesToPDF('pdf-export-content', `Meeting Notes ${new Date().toLocaleDateString()}`);
+      triggerBlobDownload(blob, fileName);
+    } catch (error) {
+      console.error('Failed to export PDF', error);
+      alert('PDF 导出失败，请稍后重试。');
     }
   };
 
-  const handleSaveSelection = (type: 'audio' | 'both') => {
-      handleDownloadAudio();
+  /**
+   * 将录音下载为 MP3，如果转换失败则给出提示。
+   */
+  const handleDownloadAudio = async () => {
+    if (!audioBlob) return;
+    try {
+      const mp3Blob = await convertAudioBlobToMp3(audioBlob);
+      const fileName = buildSafeFileName(`recording-${new Date().toISOString().replace(/[:.]/g, '-')}`, 'mp3');
+      triggerBlobDownload(mp3Blob, fileName);
+    } catch (error) {
+      console.error('Failed to export MP3 audio', error);
+      alert('音频转换失败，请稍后重试。');
+    }
+  };
+
+  /**
+   * 根据用户选择触发音频或音频+PDF 的下载任务。
+   */
+  const handleSaveSelection = async (type: 'audio' | 'both') => {
+    try {
+      const jobs: Promise<void>[] = [handleDownloadAudio()];
       if (type === 'both' && notes.length > 0) {
-          // Small delay to ensure audio download starts
-          setTimeout(() => {
-              handleExport();
-          }, 500);
+        jobs.push(handleExport());
       }
+      await Promise.all(jobs);
+    } finally {
       setShowSaveDialog(false);
+    }
   };
 
   const handleStartEdit = (note: Note) => {
@@ -241,14 +362,20 @@ const App = () => {
     return 'default';
   }, [isMinimized, isNotesOpen]);
 
+  const isPreRecordingState = recordingState === RecordingState.IDLE && !audioBlob;
+
   useEffect(() => {
-    const layout = WINDOW_LAYOUTS[layoutKey];
+    const layout = isPreRecordingState ? PRE_RECORD_WINDOW : WINDOW_LAYOUTS[layoutKey];
     setWindowSize({ width: layout.width, height: layout.height });
 
     if (window.desktop?.send) {
-      window.desktop.send('renderer-window-layout', layout);
+      window.desktop.send('renderer-window-layout', {
+        ...layout,
+        resizable: !isPreRecordingState,
+        fullscreenable: !isPreRecordingState,
+      });
     }
-  }, [layoutKey]);
+  }, [layoutKey, isPreRecordingState]);
 
   const hasNotes = notes.length > 0;
   const isRecordingActive = recordingState === RecordingState.RECORDING || recordingState === RecordingState.PAUSED;
@@ -306,14 +433,14 @@ const App = () => {
     </div>
   );
 
-  npm run desktop:dev  const macWindowElement = (
+  const macWindowElement = (
     <MacWindow 
       title={isMinimized ? (recordingState === RecordingState.RECORDING ? 'REC-ON' : 'MINI') : "RecMind"} 
       width={isDesktopApp ? '100%' : windowSize.width}
       height={isDesktopApp ? '100%' : windowSize.height}
       onClose={handleWindowClose}
       onMinimize={!isMinimized ? handleWindowMinimize : undefined}
-      onFullscreen={handleWindowFullscreen}
+      onFullscreen={!isPreRecordingState ? handleWindowFullscreen : undefined}
       isMinimized={isMinimized}
       className={isDesktopApp ? 'w-full h-full' : ''}
     >
@@ -359,7 +486,7 @@ const App = () => {
 
         {/* --- TOP PANEL: RECORDER INTERFACE --- */}
         {/* Flex-none ensures it doesn't shrink, it takes only needed space */}
-        <div className={`flex flex-col items-center w-full transition-all duration-300 z-20 shadow-md ${isMinimized ? 'p-3' : 'p-5'} bg-[#d4d4d8]`}>
+        <div className={`flex flex-col items-center w-full transition-all duration-300 z-20 shadow-md bg-[#d4d4d8] ${isMinimized ? 'p-3' : 'px-5 pt-5 pb-5'} ${!isNotesOpen && !isMinimized ? 'flex-1 pb-3' : ''}`}>
 
             {/* LCD Display Panel - Compact */}
             <div className={`w-full bg-[#111827] rounded-lg p-1 border-2 border-gray-500 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] ${isMinimized ? 'mb-2' : 'mb-5'}`}>
@@ -389,7 +516,7 @@ const App = () => {
             </div>
 
             {/* Controls Area */}
-            <div className="flex flex-col items-center gap-4 w-full">
+            <div className={`flex flex-col items-center gap-4 w-full ${!isNotesOpen && !isMinimized ? 'mt-auto' : ''}`}>
                 
                 {/* IDLE STATE: Config & Start */}
                 {!isMinimized && recordingState === RecordingState.IDLE && (

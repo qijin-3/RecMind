@@ -1,50 +1,57 @@
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 
+const ILLEGAL_FILENAME_CHARS = /[<>:"/\\|?*\x00-\x1F]/g;
+
+/**
+ * 依据指定 DOM 元素生成 PDF Blob，并返回文件名以便由调用方自定义下载流程。
+ */
 export const exportNotesToPDF = async (elementId: string, title: string = "Meeting Notes") => {
   const element = document.getElementById(elementId);
   if (!element) {
-    console.error("Element not found for PDF export");
-    return;
+    throw new Error("Element not found for PDF export");
   }
 
-  try {
-    // Generate canvas from the HTML element
-    // We increase scale for better resolution
-    const canvas = await html2canvas(element, {
-      scale: 2,
-      useCORS: true, // Helps with images
-      logging: false,
-      backgroundColor: '#ffffff'
-    });
+  // Generate canvas from the hidden HTML template with higher resolution to keep text sharp
+  const canvas = await html2canvas(element, {
+    scale: 2,
+    useCORS: true,
+    logging: false,
+    backgroundColor: '#ffffff'
+  });
 
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = pdf.internal.pageSize.getHeight();
-    
-    const imgWidth = pdfWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    
-    let heightLeft = imgHeight;
-    let position = 0;
+  const imgData = canvas.toDataURL('image/png');
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  
+  const pdfWidth = pdf.internal.pageSize.getWidth();
+  const pdfHeight = pdf.internal.pageSize.getHeight();
+  
+  const imgWidth = pdfWidth;
+  const imgHeight = (canvas.height * imgWidth) / canvas.width;
+  
+  let heightLeft = imgHeight;
+  let position = 0;
 
-    // Add first page
+  // First page
+  pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+  heightLeft -= pdfHeight;
+
+  // Additional pages
+  while (heightLeft >= 0) {
+    position = heightLeft - imgHeight;
+    pdf.addPage();
     pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
     heightLeft -= pdfHeight;
-
-    // Add subsequent pages if content is long
-    while (heightLeft >= 0) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pdfHeight;
-    }
-
-    pdf.save(`${title.replace(/\s+/g, '_')}.pdf`);
-  } catch (error) {
-    console.error("PDF Export failed", error);
-    alert("Failed to export PDF.");
   }
+
+  const sanitizedTitle = title
+    .replace(ILLEGAL_FILENAME_CHARS, '_')
+    .replace(/\s+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'RecMind_Notes';
+
+  return {
+    blob: pdf.output('blob') as Blob,
+    fileName: `${sanitizedTitle}.pdf`,
+  };
 };
