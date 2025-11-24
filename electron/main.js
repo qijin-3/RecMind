@@ -7,6 +7,9 @@ const IS_DEV = process.env.NODE_ENV === 'development' || !app.isPackaged;
 const DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:3000';
 const WINDOW_WIDTH = 420;
 const WINDOW_HEIGHT = 720;
+const APP_NAME = 'RecMind';
+
+app.setName(APP_NAME);
 let mainWindow = null;
 
 /**
@@ -27,7 +30,7 @@ function createMainWindow() {
     maximizable: false,
     minimizable: false,
     hasShadow: false,
-    title: 'RecMind',
+    title: APP_NAME,
     backgroundColor: '#00000000',
     autoHideMenuBar: true,
     webPreferences: {

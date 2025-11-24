@@ -81,7 +81,7 @@ const MacWindow: React.FC<MacWindowProps> = ({
     >
       
       {/* Outer Casing / Bezel */}
-      <div className="absolute inset-0 bg-[#d4d4d8] rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.4)_inset] border-b-4 border-r-4 border-[#9ca3af] z-0 pointer-events-none"></div>
+      <div className="absolute inset-0 bg-[#d4d4d8] rounded-xl border-b-4 border-r-4 border-[#9ca3af] z-0 pointer-events-none"></div>
       
       {/* Metallic Texture Overlay */}
       <div className="absolute inset-[3px] rounded-lg bg-gradient-to-br from-[#f3f4f6] to-[#d1d5db] z-0 pointer-events-none border border-white/50"></div>
