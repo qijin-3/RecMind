@@ -565,6 +565,13 @@ const App = () => {
     setEditText('');
   };
 
+  /**
+   * 删除指定的笔记。
+   */
+  const handleDeleteNote = (id: string) => {
+    setNotes(prev => prev.filter(n => n.id !== id));
+  };
+
   useEffect(() => {
     if (!editingNoteId && isNotesOpen) {
         notesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -858,13 +865,13 @@ const App = () => {
                 </div>
 
                 {/* Paper Body */}
-                <div className="flex-1 bg-[#fefce8] relative overflow-hidden flex flex-col">
+                <div className="flex-1 bg-[#fefce8] relative flex flex-col min-h-0">
                     {/* Paper Pattern CSS */}
                     <div className="absolute inset-0 paper-lines pointer-events-none opacity-80" />
                     <div className="absolute left-8 top-0 bottom-0 w-[2px] bg-red-200/50 pointer-events-none" />
 
                     {/* Scroll Container */}
-                    <div className="flex-1 overflow-y-auto p-0 scrollbar-hide relative">
+                    <div className="flex-1 overflow-y-auto p-0 relative min-h-0" style={{ maxHeight: '100%' }}>
                         <div className="min-h-full pb-16">
                             {notes.length === 0 && (
                                 <div className="pt-10 text-center font-serif italic text-gray-400 pl-8 pr-4 text-sm">
@@ -879,8 +886,15 @@ const App = () => {
                                     </div>
                                     
                                     {note.imageUrl ? (
-                                        <div className="my-2 p-1 bg-white shadow-sm border border-gray-200 inline-block transform -rotate-1">
+                                        <div className="my-2 p-1 bg-white shadow-sm border border-gray-200 inline-block transform -rotate-1 relative group/image">
                                             <img src={note.imageUrl} alt="Attachment" className="max-h-32" />
+                                            <button
+                                                onClick={() => handleDeleteNote(note.id)}
+                                                className="absolute top-1 right-1 opacity-0 group-hover/image:opacity-100 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-opacity shadow-md"
+                                                title="删除截图"
+                                            >
+                                                <Trash2 size={12} />
+                                            </button>
                                         </div>
                                     ) : null}
                                     
@@ -903,12 +917,22 @@ const App = () => {
                                             <p className="font-serif text-base text-gray-800 leading-[2rem] break-words whitespace-pre-wrap">
                                                 {note.text}
                                             </p>
-                                            <button
-                                                onClick={() => handleStartEdit(note)}
-                                                className="absolute -right-2 top-1 opacity-0 group-hover/text:opacity-100 text-gray-400 hover:text-blue-600"
-                                            >
-                                                <Pencil size={12} />
-                                            </button>
+                                            <div className="absolute -right-2 top-1 opacity-0 group-hover/text:opacity-100 flex gap-1 transition-opacity">
+                                                <button
+                                                    onClick={() => handleStartEdit(note)}
+                                                    className="text-gray-400 hover:text-blue-600 p-1"
+                                                    title="编辑"
+                                                >
+                                                    <Pencil size={12} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteNote(note.id)}
+                                                    className="text-gray-400 hover:text-red-600 p-1"
+                                                    title="删除"
+                                                >
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
