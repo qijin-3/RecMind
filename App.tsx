@@ -681,11 +681,11 @@ const App = () => {
       className={isDesktopApp ? 'w-full h-full' : ''}
     >
     {/* Main Interface Wrapper (Vertical Layout) */}
-    <div className="flex-1 bg-[#d4d4d8] flex flex-col h-full relative overflow-hidden">
+    <div className="flex-1 bg-[#d4d4d8] flex flex-col h-full relative overflow-hidden min-h-0">
         
         {/* --- TOP PANEL: RECORDER INTERFACE --- */}
         {/* Flex-none ensures it doesn't shrink, it takes only needed space */}
-        <div className={`flex flex-col items-center w-full transition-all duration-300 z-20 shadow-md bg-[#d4d4d8] ${isMinimized ? 'p-3' : 'px-5 pt-5 pb-5'} ${!isNotesOpen && !isMinimized ? 'flex-1 pb-3' : ''}`}>
+        <div className={`flex flex-col items-center w-full transition-all duration-300 z-20 shadow-md bg-[#d4d4d8] flex-none shrink-0 ${isMinimized ? 'p-3' : 'px-5 pt-5 pb-5'} ${!isNotesOpen && !isMinimized ? 'flex-1 pb-3' : ''}`}>
 
             {/* LCD Display Panel - Compact */}
             <div className={`w-full bg-[#111827] rounded-lg p-1 border-2 border-gray-500 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] ${isMinimized ? 'mb-2' : 'mb-5'}`}>
@@ -841,7 +841,7 @@ const App = () => {
         {/* --- BOTTOM PANEL: NOTES (LEGAL PAD) --- */}
         {/* Rendered if Open, slides down conceptually */}
         {isNotesOpen && !isMinimized && (
-            <div className="flex-1 w-full relative flex flex-col shadow-[inset_0_10px_20px_rgba(0,0,0,0.1)] z-10 animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="flex-1 w-full relative flex flex-col shadow-[inset_0_10px_20px_rgba(0,0,0,0.1)] z-10 animate-in fade-in slide-in-from-top-4 duration-300 min-h-0 overflow-hidden">
                 
                 {/* Paper Header / Tear Strip */}
                 <div className="h-8 bg-[#fef3c7] border-b border-[#e5e7eb] flex items-center justify-between px-4 shrink-0 shadow-sm relative z-10 border-t border-gray-300">
@@ -865,13 +865,13 @@ const App = () => {
                 </div>
 
                 {/* Paper Body */}
-                <div className="flex-1 bg-[#fefce8] relative flex flex-col min-h-0">
+                <div className="flex-1 bg-[#fefce8] relative flex flex-col min-h-0 overflow-hidden">
                     {/* Paper Pattern CSS */}
                     <div className="absolute inset-0 paper-lines pointer-events-none opacity-80" />
                     <div className="absolute left-8 top-0 bottom-0 w-[2px] bg-red-200/50 pointer-events-none" />
 
                     {/* Scroll Container */}
-                    <div className="flex-1 overflow-y-auto p-0 relative min-h-0" style={{ maxHeight: '100%' }}>
+                    <div className="flex-1 overflow-y-auto p-0 relative min-h-0">
                         <div className="min-h-full pb-16">
                             {notes.length === 0 && (
                                 <div className="pt-10 text-center font-serif italic text-gray-400 pl-8 pr-4 text-sm">
