@@ -9,7 +9,7 @@ import JSZip from 'jszip';
 
 const WINDOW_LAYOUTS = {
   minimized: { width: 340, height: 300, minWidth: 320, minHeight: 280 },
-  default: { width: 420, height: 312, minWidth: 360, minHeight: 312 },
+  default: { width: 420, height: 320, minWidth: 360, minHeight: 320 },
   notes: { width: 520, height: 860, minWidth: 480, minHeight: 720 },
   miniFloating: { width: 280, height: 140, minWidth: 260, minHeight: 120 },
 } as const;
@@ -767,26 +767,28 @@ const App = () => {
                                         variant="normal"
                                     >
                                         <Download size={16} />
-                                        <span className="font-bold text-xs">{hasNotes ? 'SAVE ZIP' : 'SAVE WAV'}</span>
+                                        <span className="font-bold text-xs">SAVE</span>
                                     </RetroButton>
                                     
                                     <RetroButton 
                                         onClick={handleDiscard}
-                                        className="w-16 py-3 bg-red-100/50"
+                                        className="w-12 py-3 gap-2"
                                         variant="normal"
                                     >
-                                       <Trash2 size={16} className="text-red-600" />
+                                       <Trash2 size={16} />
+                                    </RetroButton>
+                                    
+                                    {/* Toggle Notes Button - 只有在有笔记时才可点击 */}
+                                    <RetroButton 
+                                        onClick={toggleNotes}
+                                        disabled={!hasNotes}
+                                        className="w-12 py-3 gap-2"
+                                        variant="normal"
+                                        title={hasNotes ? "Toggle Notes" : "No notes available"}
+                                    >
+                                        <FileText size={16} />
                                     </RetroButton>
                                 </div>
-                                {/* Small toggle to show notes even if finished */}
-                                {!isNotesOpen && hasNotes && (
-                                    <button 
-                                        onClick={toggleNotes}
-                                        className="text-xs text-gray-500 hover:text-gray-700 underline mt-1"
-                                    >
-                                        Review Notes
-                                    </button>
-                                )}
                             </div>
                         ) : (
                             <>
@@ -846,20 +848,22 @@ const App = () => {
                             {/* Screenshot Button */}
                             <RetroButton 
                                 onClick={handleCaptureScreen}
-                                className="w-12 h-12 rounded-lg text-gray-600 bg-white/80 border border-gray-300"
+                                className="w-12 py-3 gap-2"
+                                variant="normal"
                                 title="Capture Screen"
                             >
-                                <Camera size={18} />
+                                <Camera size={16} />
                             </RetroButton>
                             
                             {/* Toggle Notes Button (Only visible if not minimized) */}
                             {!isMinimized && (
                                 <RetroButton 
                                     onClick={toggleNotes}
-                                    className={`w-12 h-12 rounded-lg text-gray-600 bg-white/80 border border-gray-300 ${isNotesOpen ? 'bg-blue-100 border-blue-300 text-blue-600' : ''}`}
+                                    className={`w-12 py-3 gap-2 ${isNotesOpen ? 'bg-blue-100 border-blue-300' : ''}`}
+                                    variant="normal"
                                     title="Toggle Notes"
                                 >
-                                    <FileText size={18} />
+                                    <FileText size={16} />
                                 </RetroButton>
                             )}
                          </div>
@@ -983,12 +987,14 @@ const App = () => {
                     </div>
 
                     {/* Input Footer */}
-                    <div className={`p-3 border-t-2 border-[#e5e7eb] bg-[#fefce8] relative z-20 ${!isRecordingActive && !hasNotes ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+                    {/* 允许在录音中或录音完成后编辑笔记 */}
+                    <div className={`p-3 border-t-2 border-[#e5e7eb] bg-[#fefce8] relative z-20 ${!isRecordingActive && !hasNotes && !audioBlob ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
                         <form onSubmit={handleAddNote} className="flex items-end gap-2">
                             <button 
                                 type="button" 
-                                onClick={() => isRecordingActive && fileInputRef.current?.click()}
+                                onClick={() => (isRecordingActive || audioBlob) && fileInputRef.current?.click()}
                                 className="p-1.5 text-gray-500 hover:text-gray-800 transition-colors"
+                                disabled={!isRecordingActive && !audioBlob}
                             >
                                 <ImageIcon size={18} />
                             </button>
