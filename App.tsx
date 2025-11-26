@@ -5,7 +5,6 @@ import { useAudioRecorder } from './hooks/useAudioRecorder';
 import { Note, RecordingState } from './types';
 import { Mic, StopCircle, Play, Pause, Image as ImageIcon, Download, Plus, Pencil, Check, X, Monitor, ChevronDown, ChevronUp, Paperclip, Trash2, FileText, Music } from 'lucide-react';
 import { exportNotesToPDF } from './services/pdfService';
-import lamejs from 'lamejs';
 
 const WINDOW_LAYOUTS = {
   minimized: { width: 340, height: 300, minWidth: 320, minHeight: 280 },
@@ -130,39 +129,62 @@ const App = () => {
   };
 
   /**
-   * 将多声道音频混合为单声道，保证 MP3 编码兼容性。
+   * 将 DataView 中写入 ASCII 字符串。
    */
-  const mixToMonoChannel = (buffer: AudioBuffer) => {
-    if (buffer.numberOfChannels === 1) {
-      return buffer.getChannelData(0);
+  const writeStringToDataView = (view: DataView, offset: number, text: string) => {
+    for (let i = 0; i < text.length; i++) {
+      view.setUint8(offset + i, text.charCodeAt(i));
     }
-    const output = new Float32Array(buffer.length);
-    for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
-      const channelData = buffer.getChannelData(channel);
-      for (let i = 0; i < buffer.length; i++) {
-        output[i] += channelData[i] / buffer.numberOfChannels;
+  };
+
+  /**
+   * 将 AudioBuffer 编码为标准 16bit PCM WAV。
+   */
+  const encodeAudioBufferToWav = (audioBuffer: AudioBuffer) => {
+    const numChannels = audioBuffer.numberOfChannels;
+    const sampleRate = audioBuffer.sampleRate;
+    const bytesPerSample = 2;
+    const blockAlign = numChannels * bytesPerSample;
+    const bufferLength = audioBuffer.length * blockAlign;
+    const wavBuffer = new ArrayBuffer(44 + bufferLength);
+    const view = new DataView(wavBuffer);
+
+    writeStringToDataView(view, 0, 'RIFF');
+    view.setUint32(4, 36 + bufferLength, true);
+    writeStringToDataView(view, 8, 'WAVE');
+    writeStringToDataView(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bytesPerSample * 8, true);
+    writeStringToDataView(view, 36, 'data');
+    view.setUint32(40, bufferLength, true);
+
+    let offset = 44;
+    const channels: Float32Array[] = [];
+    for (let channel = 0; channel < numChannels; channel++) {
+      channels.push(audioBuffer.getChannelData(channel));
+    }
+
+    for (let i = 0; i < audioBuffer.length; i++) {
+      for (let channel = 0; channel < numChannels; channel++) {
+        const sample = Math.max(-1, Math.min(1, channels[channel][i]));
+        const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+        view.setInt16(offset, intSample, true);
+        offset += 2;
       }
     }
-    return output;
+
+    return wavBuffer;
   };
 
   /**
-   * 将 Float32 PCM 数据转换为 Int16，以便交给 lamejs。
+   * 将录制得到的 Blob 转换为 WAV Blob。
    */
-  const convertFloat32ToInt16 = (buffer: Float32Array) => {
-    const length = buffer.length;
-    const result = new Int16Array(length);
-    for (let i = 0; i < length; i++) {
-      const sample = Math.max(-1, Math.min(1, buffer[i]));
-      result[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
-    }
-    return result;
-  };
-
-  /**
-   * 将录制得到的 Blob 转换为 MP3 Blob。
-   */
-  const convertAudioBlobToMp3 = async (blob: Blob) => {
+  const convertAudioBlobToWav = async (blob: Blob) => {
     const arrayBuffer = await blob.arrayBuffer();
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioCtx) {
@@ -171,30 +193,8 @@ const App = () => {
     const audioContext = new AudioCtx();
     try {
       const audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
-      const monoData = mixToMonoChannel(audioBuffer);
-      const pcm16 = convertFloat32ToInt16(monoData);
-      const mp3Encoder = new lamejs.Mp3Encoder(1, audioBuffer.sampleRate, 128);
-      const blockSize = 1152;
-      const mp3Chunks: BlobPart[] = [];
-
-      for (let i = 0; i < pcm16.length; i += blockSize) {
-        const chunk = pcm16.subarray(i, Math.min(i + blockSize, pcm16.length));
-        const mp3Buffer = mp3Encoder.encodeBuffer(chunk);
-        if (mp3Buffer.length > 0) {
-          const copyView = new Uint8Array(mp3Buffer.length);
-          copyView.set(mp3Buffer);
-          mp3Chunks.push(copyView.buffer);
-        }
-      }
-
-      const flushBuffer = mp3Encoder.flush();
-      if (flushBuffer.length > 0) {
-        const copyView = new Uint8Array(flushBuffer.length);
-        copyView.set(flushBuffer);
-        mp3Chunks.push(copyView.buffer);
-      }
-
-      return new Blob(mp3Chunks, { type: 'audio/mpeg' });
+      const wavBuffer = encodeAudioBufferToWav(audioBuffer);
+      return new Blob([wavBuffer], { type: 'audio/wav' });
     } finally {
       await audioContext.close();
     }
@@ -300,16 +300,17 @@ const App = () => {
   };
 
   /**
-   * 将录音下载为 MP3，如果转换失败则给出提示。
+   * 将录音直接下载为 WAV。
    */
   const handleDownloadAudio = async () => {
     if (!audioBlob) return;
+    const baseFileName = `recording-${new Date().toISOString().replace(/[:.]/g, '-')}`;
     try {
-      const mp3Blob = await convertAudioBlobToMp3(audioBlob);
-      const fileName = buildSafeFileName(`recording-${new Date().toISOString().replace(/[:.]/g, '-')}`, 'mp3');
-      triggerBlobDownload(mp3Blob, fileName);
+      const wavBlob = await convertAudioBlobToWav(audioBlob);
+      const fileName = buildSafeFileName(baseFileName, 'wav');
+      triggerBlobDownload(wavBlob, fileName);
     } catch (error) {
-      console.error('Failed to export MP3 audio', error);
+      console.error('Failed to export WAV audio', error);
       alert('音频转换失败，请稍后重试。');
     }
   };
