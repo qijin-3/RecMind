@@ -48,6 +48,9 @@ const App = () => {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
 
+  // Image Viewer State
+  const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const notesEndRef = useRef<HTMLDivElement>(null);
   const isDesktopApp = Boolean(window.desktop);
@@ -887,9 +890,17 @@ const App = () => {
                                     
                                     {note.imageUrl ? (
                                         <div className="my-2 p-1 bg-white shadow-sm border border-gray-200 inline-block transform -rotate-1 relative group/image">
-                                            <img src={note.imageUrl} alt="Attachment" className="max-h-32" />
+                                            <img 
+                                                src={note.imageUrl} 
+                                                alt="Attachment" 
+                                                className="max-h-32 cursor-pointer hover:opacity-90 transition-opacity" 
+                                                onClick={() => setViewingImageUrl(note.imageUrl || null)}
+                                            />
                                             <button
-                                                onClick={() => handleDeleteNote(note.id)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDeleteNote(note.id);
+                                                }}
                                                 className="absolute top-1 right-1 opacity-0 group-hover/image:opacity-100 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-opacity shadow-md"
                                                 title="删除截图"
                                             >
@@ -1071,6 +1082,30 @@ const App = () => {
               className="w-16 bg-[#ef4444] hover:bg-[#dc2626] border border-[#7f1d1d] rounded-md py-2 flex items-center justify-center text-sm font-semibold transition-colors no-drag"
             >
               Stop
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Image Viewer Modal */}
+      {viewingImageUrl && (
+        <div 
+          className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4"
+          onClick={() => setViewingImageUrl(null)}
+        >
+          <div className="relative max-w-[90vw] max-h-[90vh] flex items-center justify-center">
+            <img 
+              src={viewingImageUrl} 
+              alt="Full size screenshot" 
+              className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button
+              onClick={() => setViewingImageUrl(null)}
+              className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
+              title="关闭"
+            >
+              <X size={24} />
             </button>
           </div>
         </div>
