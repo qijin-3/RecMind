@@ -124,6 +124,17 @@ function registerIpcHandlers() {
   });
 
   /**
+   * 设置窗口是否始终置顶。
+   */
+  ipcMain.on('set-always-on-top', (_event, payload) => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return;
+    }
+    const alwaysOnTop = payload?.alwaysOnTop === true;
+    mainWindow.setAlwaysOnTop(alwaysOnTop, 'floating', 1);
+  });
+
+  /**
    * 获取可用的屏幕源列表，供渲染进程使用 getUserMedia 捕获。
    * 只返回整个屏幕的源（screen 类型），不包含窗口。
    * 会返回当前窗口所在显示器的 ID，帮助渲染进程选择正确的屏幕。

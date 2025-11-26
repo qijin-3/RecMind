@@ -11,7 +11,7 @@ const WINDOW_LAYOUTS = {
   minimized: { width: 340, height: 300, minWidth: 320, minHeight: 280 },
   default: { width: 420, height: 312, minWidth: 360, minHeight: 312 },
   notes: { width: 520, height: 860, minWidth: 480, minHeight: 720 },
-  miniFloating: { width: 380, height: 220, minWidth: 360, minHeight: 200 },
+  miniFloating: { width: 280, height: 140, minWidth: 260, minHeight: 120 },
 } as const;
 
 const PRE_RECORD_WINDOW = { width: 400, height: 400, minWidth: 400, minHeight: 400 };
@@ -33,6 +33,7 @@ const App = () => {
   const [currentNote, setCurrentNote] = useState('');
   const [isMinimized, setIsMinimized] = useState(false);
   const [isMiniFloatingMode, setIsMiniFloatingMode] = useState(false);
+  const [showVisualizerInMini, setShowVisualizerInMini] = useState(false);
   
   // Visibility State for Notes
   const [isNotesOpen, setIsNotesOpen] = useState(false);
@@ -255,6 +256,10 @@ const App = () => {
       setIsMinimized(false);
       setIsNotesOpen(false);
       setIsMiniFloatingMode(true);
+      // 设置窗口置顶
+      if (window.desktop?.send) {
+        window.desktop.send('set-always-on-top', { alwaysOnTop: true });
+      }
     }
   };
 
@@ -263,6 +268,10 @@ const App = () => {
    */
   const disableMiniFloatingMode = () => {
     setIsMiniFloatingMode(false);
+    // 取消窗口置顶
+    if (window.desktop?.send) {
+      window.desktop.send('set-always-on-top', { alwaysOnTop: false });
+    }
   };
 
   const handleDiscard = () => {
@@ -634,6 +643,10 @@ const App = () => {
   useEffect(() => {
     if (!isRecordingActive) {
       setIsMiniFloatingMode(false);
+      // 取消窗口置顶
+      if (window.desktop?.send) {
+        window.desktop.send('set-always-on-top', { alwaysOnTop: false });
+      }
     }
   }, [isRecordingActive]);
   
@@ -1050,57 +1063,66 @@ const App = () => {
       )}
 
       {isMiniFloatingMode && (
-        <div className="fixed top-6 right-6 w-[360px] bg-[#0b1220] border border-[#1f2937] rounded-xl p-4 z-50 text-white font-['Share_Tech_Mono'] drag-region cursor-move">
-          <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.5em] text-[#9ca3af]">
+        <div className="fixed top-6 right-6 w-[260px] bg-[#0b1220] border border-[#1f2937] rounded-xl p-3 z-50 text-white font-['Share_Tech_Mono'] drag-region cursor-move">
+          <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.3em] text-[#9ca3af] mb-2">
             <span>Timer</span>
-            <div className="flex items-center gap-2">
-              <div className={`w-2.5 h-2.5 rounded-full ${recordingState === RecordingState.RECORDING ? 'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.9)] animate-pulse' : 'bg-red-900'}`} />
+            <div className="flex items-center gap-1.5">
+              <div className={`w-2 h-2 rounded-full ${recordingState === RecordingState.RECORDING ? 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.9)] animate-pulse' : 'bg-red-900'}`} />
               <span>REC</span>
+              <button
+                onClick={() => setShowVisualizerInMini(!showVisualizerInMini)}
+                className="text-[#94a3b8] hover:text-white transition-colors no-drag p-0.5"
+                title={showVisualizerInMini ? "隐藏拾音器" : "显示拾音器"}
+              >
+                <Monitor size={12} />
+              </button>
               <button
                 onClick={disableMiniFloatingMode}
                 className="text-[#94a3b8] hover:text-white transition-colors no-drag"
               >
-                <Maximize2 size={16} />
+                <Maximize2 size={14} />
               </button>
             </div>
           </div>
 
-          <div className="text-center text-4xl mt-3 mb-2 text-[#4ade80] drop-shadow-[0_0_6px_rgba(74,222,128,0.7)]">
+          <div className="text-center text-3xl mb-2 text-[#4ade80] drop-shadow-[0_0_6px_rgba(74,222,128,0.7)]">
             {formatTime(duration)}
           </div>
 
-          <div className="h-12 bg-[#020617] border border-[#1e293b] rounded-md overflow-hidden relative">
-            <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
-            <Visualizer analyser={analyser} isActive={recordingState === RecordingState.RECORDING} />
-          </div>
+          {showVisualizerInMini && (
+            <div className="h-10 bg-[#020617] border border-[#1e293b] rounded-md overflow-hidden relative mb-2">
+              <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
+              <Visualizer analyser={analyser} isActive={recordingState === RecordingState.RECORDING} />
+            </div>
+          )}
 
-          <div className="mt-3 flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={recordingState === RecordingState.RECORDING ? pauseRecording : resumeRecording}
-              className="flex-1 bg-[#1e293b] hover:bg-[#0f172a] border border-[#334155] rounded-md py-2 flex items-center justify-center gap-2 text-sm transition-colors no-drag"
+              className="flex-1 bg-[#1e293b] hover:bg-[#0f172a] border border-[#334155] rounded-md py-1.5 flex items-center justify-center gap-1 text-xs transition-colors no-drag"
             >
               {recordingState === RecordingState.RECORDING ? (
                 <>
-                  <Pause size={16} />
+                  <Pause size={14} />
                   <span>Pause</span>
                 </>
               ) : (
                 <>
-                  <Play size={16} />
+                  <Play size={14} />
                   <span>Resume</span>
                 </>
               )}
             </button>
             <button
               onClick={handleCaptureScreen}
-              className="w-12 h-10 bg-[#1e293b] hover:bg-[#0f172a] border border-[#334155] rounded-md flex items-center justify-center transition-colors no-drag"
+              className="w-10 h-8 bg-[#1e293b] hover:bg-[#0f172a] border border-[#334155] rounded-md flex items-center justify-center transition-colors no-drag"
               title="Capture Screen"
             >
-              <Camera size={16} />
+              <Camera size={14} />
             </button>
             <button
               onClick={stopRecording}
-              className="w-16 bg-[#ef4444] hover:bg-[#dc2626] border border-[#7f1d1d] rounded-md py-2 flex items-center justify-center text-sm font-semibold transition-colors no-drag"
+              className="w-14 bg-[#ef4444] hover:bg-[#dc2626] border border-[#7f1d1d] rounded-md py-1.5 flex items-center justify-center text-xs font-semibold transition-colors no-drag"
             >
               Stop
             </button>
