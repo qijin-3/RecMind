@@ -1,4 +1,5 @@
 import React from 'react';
+import { Minimize2 } from 'lucide-react';
 
 interface MacWindowProps {
   children: React.ReactNode;
@@ -7,7 +8,9 @@ interface MacWindowProps {
   onClose?: () => void;
   onMinimize?: () => void;
   onFullscreen?: () => void;
+  onMiniMode?: () => void;
   isMinimized?: boolean;
+  isMiniModeEnabled?: boolean;
   width?: number | string;
   height?: number | 'auto' | string;
 }
@@ -22,7 +25,9 @@ const MacWindow: React.FC<MacWindowProps> = ({
   onClose,
   onMinimize,
   onFullscreen,
+  onMiniMode,
   isMinimized = false,
+  isMiniModeEnabled = false,
   width,
   height,
 }) => {
@@ -93,6 +98,25 @@ const MacWindow: React.FC<MacWindowProps> = ({
           <div className="font-['Share_Tech_Mono'] text-gray-500 text-xs tracking-[0.2em] uppercase text-shadow-engraved cursor-default">
             {title || 'RECORDER-3000'}
           </div>
+
+          {/* Mini Mode Button (Right side) */}
+          {onMiniMode && (
+            <div className="no-drag">
+              <button
+                type="button"
+                onClick={onMiniMode}
+                disabled={isMiniModeEnabled}
+                aria-label="Enter mini mode"
+                className={`w-6 h-6 rounded-md bg-white/80 border border-gray-300 flex items-center justify-center transition-all ${
+                  isMiniModeEnabled 
+                    ? 'opacity-50 cursor-not-allowed' 
+                    : 'cursor-pointer hover:bg-gray-100 active:scale-95'
+                }`}
+              >
+                <Minimize2 size={14} className="text-gray-600" />
+              </button>
+            </div>
+          )}
         </div>
         
         {/* Main Interface */}

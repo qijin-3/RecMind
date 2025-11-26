@@ -3,7 +3,7 @@ import MacWindow from './components/MacWindow';
 import Visualizer from './components/Visualizer';
 import { useAudioRecorder } from './hooks/useAudioRecorder';
 import { Note, RecordingState } from './types';
-import { Mic, StopCircle, Play, Pause, Image as ImageIcon, Download, Plus, Pencil, Check, X, Monitor, ChevronDown, ChevronUp, Paperclip, Trash2, Minimize2, Maximize2, Camera } from 'lucide-react';
+import { Mic, StopCircle, Play, Pause, Image as ImageIcon, Download, Plus, Pencil, Check, X, Monitor, ChevronDown, ChevronUp, Paperclip, Trash2, Minimize2, Maximize2, Camera, FileText } from 'lucide-react';
 import { exportNotesToPDF } from './services/pdfService';
 import JSZip from 'jszip';
 
@@ -711,6 +711,8 @@ const App = () => {
       onClose={handleWindowClose}
       onMinimize={!isMinimized ? handleWindowMinimize : undefined}
       onFullscreen={!isPreRecordingState ? handleWindowFullscreen : undefined}
+      onMiniMode={isRecordingActive ? enableMiniFloatingMode : undefined}
+      isMiniModeEnabled={isMiniFloatingMode}
       isMinimized={isMinimized}
       className={isDesktopApp ? 'w-full h-full' : ''}
     >
@@ -854,18 +856,12 @@ const App = () => {
                             {!isMinimized && (
                                 <RetroButton 
                                     onClick={toggleNotes}
-                                    className={`w-12 h-12 rounded-lg ${isNotesOpen ? 'bg-blue-100 border-blue-300 text-blue-600' : 'text-gray-500'}`}
+                                    className={`w-12 h-12 rounded-lg text-gray-600 bg-white/80 border border-gray-300 ${isNotesOpen ? 'bg-blue-100 border-blue-300 text-blue-600' : ''}`}
+                                    title="Toggle Notes"
                                 >
-                                    {isNotesOpen ? <ChevronUp size={20} /> : <Paperclip size={20} />}
+                                    <FileText size={18} />
                                 </RetroButton>
                             )}
-                            <RetroButton 
-                                onClick={enableMiniFloatingMode}
-                                className="w-12 h-12 rounded-lg text-gray-600 bg-white/80 border border-gray-300"
-                                disabled={isMiniFloatingMode}
-                            >
-                                <Minimize2 size={18} />
-                            </RetroButton>
                          </div>
                     </div>
                 )}
