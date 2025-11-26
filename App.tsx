@@ -14,7 +14,7 @@ const WINDOW_LAYOUTS = {
   miniFloating: { width: 280, height: 140, minWidth: 260, minHeight: 120 },
 } as const;
 
-const PRE_RECORD_WINDOW = { width: 400, height: 400, minWidth: 400, minHeight: 400 };
+// 移除 PRE_RECORD_WINDOW，统一使用 default 布局高度
 const INVALID_FILENAME_CHARS = /[<>:"/\\|?*\x00-\x1F]/g;
 
 const App = () => {
@@ -625,12 +625,17 @@ const App = () => {
   const isPreRecordingState = recordingState === RecordingState.IDLE && !audioBlob;
 
   useEffect(() => {
-    const layout = isPreRecordingState ? PRE_RECORD_WINDOW : WINDOW_LAYOUTS[layoutKey];
-    setWindowSize({ width: layout.width, height: layout.height });
+    // 统一使用 default 布局的高度（320px），保持三个状态一致
+    const layout = WINDOW_LAYOUTS[layoutKey];
+    // 如果不在 notes 模式，统一使用 default 的高度
+    const finalLayout = layoutKey === 'notes' 
+      ? layout 
+      : { ...layout, height: WINDOW_LAYOUTS.default.height };
+    setWindowSize({ width: finalLayout.width, height: finalLayout.height });
 
     if (window.desktop?.send) {
       window.desktop.send('renderer-window-layout', {
-        ...layout,
+        ...finalLayout,
         resizable: !isPreRecordingState,
         fullscreenable: !isPreRecordingState,
       });
@@ -715,14 +720,14 @@ const App = () => {
       isMiniModeEnabled={isMiniFloatingMode}
       isMinimized={isMinimized}
       className={isDesktopApp ? 'w-full h-full' : ''}
-      contentAutoHeight={!isNotesOpen && !isMinimized}
+      contentAutoHeight={false}
     >
     {/* Main Interface Wrapper (Vertical Layout) */}
-    <div className={`bg-[#d4d4d8] flex flex-col relative overflow-hidden ${isNotesOpen ? 'flex-1 h-full min-h-0' : 'flex-none'}`}>
+    <div className={`bg-[#d4d4d8] flex flex-col relative overflow-hidden ${isNotesOpen ? 'flex-1 h-full min-h-0' : 'h-full'}`}>
         
         {/* --- TOP PANEL: RECORDER INTERFACE --- */}
-        {/* Flex-none ensures it doesn't shrink, it takes only needed space */}
-        <div className={`flex flex-col items-center w-full transition-all duration-300 z-20 shadow-md bg-[#d4d4d8] flex-none shrink-0 ${isMinimized ? 'p-3' : 'px-5 pt-5 pb-5'}`}>
+        {/* 使用 flex-1 占据剩余空间，让按钮区域固定在底部 */}
+        <div className={`flex flex-col items-center w-full transition-all duration-300 z-20 shadow-md bg-[#d4d4d8] flex-1 ${isMinimized ? 'p-3' : 'px-5 pt-5 pb-5'} ${!isNotesOpen && !isMinimized ? 'justify-between' : ''}`}>
 
             {/* LCD Display Panel - Compact */}
             <div className={`w-full bg-[#111827] rounded-lg p-1 border-2 border-gray-500 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] ${isMinimized ? 'mb-2' : 'mb-5'}`}>
@@ -751,8 +756,8 @@ const App = () => {
                  </div>
             </div>
 
-            {/* Controls Area */}
-            <div className="flex flex-col items-center gap-4 w-full">
+            {/* Controls Area - 固定在底部 */}
+            <div className={`flex flex-col items-center gap-4 w-full ${!isNotesOpen && !isMinimized ? 'mt-auto' : ''}`}>
                 
                 {/* IDLE STATE: Config & Start */}
                 {!isMinimized && recordingState === RecordingState.IDLE && (
