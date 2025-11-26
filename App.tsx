@@ -3,7 +3,7 @@ import MacWindow from './components/MacWindow';
 import Visualizer from './components/Visualizer';
 import { useAudioRecorder } from './hooks/useAudioRecorder';
 import { Note, RecordingState } from './types';
-import { Mic, StopCircle, Play, Pause, Image as ImageIcon, Download, Plus, Pencil, Check, X, Monitor, ChevronDown, ChevronUp, Paperclip, Trash2 } from 'lucide-react';
+import { Mic, StopCircle, Play, Pause, Image as ImageIcon, Download, Plus, Pencil, Check, X, Monitor, ChevronDown, ChevronUp, Paperclip, Trash2, Minimize2, Maximize2 } from 'lucide-react';
 import { exportNotesToPDF } from './services/pdfService';
 import JSZip from 'jszip';
 
@@ -11,6 +11,7 @@ const WINDOW_LAYOUTS = {
   minimized: { width: 340, height: 300, minWidth: 320, minHeight: 280 },
   default: { width: 420, height: 640, minWidth: 360, minHeight: 520 },
   notes: { width: 520, height: 860, minWidth: 480, minHeight: 720 },
+  miniFloating: { width: 380, height: 220, minWidth: 360, minHeight: 200 },
 } as const;
 
 const PRE_RECORD_WINDOW = { width: 400, height: 400, minWidth: 400, minHeight: 400 };
@@ -31,6 +32,7 @@ const App = () => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [currentNote, setCurrentNote] = useState('');
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isMiniFloatingMode, setIsMiniFloatingMode] = useState(false);
   
   // Visibility State for Notes
   const [isNotesOpen, setIsNotesOpen] = useState(false);
@@ -238,6 +240,24 @@ const App = () => {
     await startRecording(configMic, configSys);
     // Note: We do NOT automatically open notes (isNotesOpen stays false)
   };
+  
+  /**
+   * 进入迷你悬浮模式，保持录音 HUD 常驻前端。
+   */
+  const enableMiniFloatingMode = () => {
+    if (isRecordingActive) {
+      setIsMinimized(false);
+      setIsNotesOpen(false);
+      setIsMiniFloatingMode(true);
+    }
+  };
+
+  /**
+   * 退出迷你悬浮模式，恢复完整界面。
+   */
+  const disableMiniFloatingMode = () => {
+    setIsMiniFloatingMode(false);
+  };
 
   const handleDiscard = () => {
     if (confirm("Are you sure you want to discard this recording? This cannot be undone.")) {
@@ -380,7 +400,10 @@ const App = () => {
   }, [notes, editingNoteId, isNotesOpen]);
 
   // Handle Window Size changes based on modes
-  const layoutKey = useMemo<'minimized' | 'default' | 'notes'>(() => {
+  const layoutKey = useMemo<'miniFloating' | 'minimized' | 'default' | 'notes'>(() => {
+    if (isMiniFloatingMode) {
+      return 'miniFloating';
+    }
     if (isMinimized) {
       return 'minimized';
     }
@@ -388,7 +411,7 @@ const App = () => {
       return 'notes';
     }
     return 'default';
-  }, [isMinimized, isNotesOpen]);
+  }, [isMiniFloatingMode, isMinimized, isNotesOpen]);
 
   const isPreRecordingState = recordingState === RecordingState.IDLE && !audioBlob;
 
@@ -407,6 +430,12 @@ const App = () => {
 
   const hasNotes = notes.length > 0;
   const isRecordingActive = recordingState === RecordingState.RECORDING || recordingState === RecordingState.PAUSED;
+  
+  useEffect(() => {
+    if (!isRecordingActive) {
+      setIsMiniFloatingMode(false);
+    }
+  }, [isRecordingActive]);
   
   const toggleNotes = () => setIsNotesOpen(!isNotesOpen);
 
@@ -598,15 +627,24 @@ const App = () => {
                             </RetroButton>
                          </div>
 
-                         {/* Toggle Notes Button (Only visible if not minimized) */}
-                         {!isMinimized && (
+                         <div className="flex items-center gap-2">
+                            {/* Toggle Notes Button (Only visible if not minimized) */}
+                            {!isMinimized && (
+                                <RetroButton 
+                                    onClick={toggleNotes}
+                                    className={`w-12 h-12 rounded-lg ${isNotesOpen ? 'bg-blue-100 border-blue-300 text-blue-600' : 'text-gray-500'}`}
+                                >
+                                    {isNotesOpen ? <ChevronUp size={20} /> : <Paperclip size={20} />}
+                                </RetroButton>
+                            )}
                             <RetroButton 
-                                onClick={toggleNotes}
-                                className={`w-12 h-12 rounded-lg ${isNotesOpen ? 'bg-blue-100 border-blue-300 text-blue-600' : 'text-gray-500'}`}
+                                onClick={enableMiniFloatingMode}
+                                className="w-12 h-12 rounded-lg text-gray-600 bg-white/80 border border-gray-300"
+                                disabled={isMiniFloatingMode}
                             >
-                                {isNotesOpen ? <ChevronUp size={20} /> : <Paperclip size={20} />}
+                                <Minimize2 size={18} />
                             </RetroButton>
-                         )}
+                         </div>
                     </div>
                 )}
             </div>
@@ -766,9 +804,63 @@ const App = () => {
         </div>
       </div>
 
-      {isDesktopApp ? macWindowElement : (
-        <div className="inline-block">
-          {macWindowElement}
+      {!isMiniFloatingMode && (
+        isDesktopApp ? macWindowElement : (
+          <div className="inline-block">
+            {macWindowElement}
+          </div>
+        )
+      )}
+
+      {isMiniFloatingMode && (
+        <div className="fixed top-6 right-6 w-[360px] bg-[#0b1220] border border-[#1f2937] rounded-xl p-4 z-50 text-white font-['Share_Tech_Mono'] drag-region cursor-move">
+          <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.5em] text-[#9ca3af]">
+            <span>Timer</span>
+            <div className="flex items-center gap-2">
+              <div className={`w-2.5 h-2.5 rounded-full ${recordingState === RecordingState.RECORDING ? 'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.9)] animate-pulse' : 'bg-red-900'}`} />
+              <span>REC</span>
+              <button
+                onClick={disableMiniFloatingMode}
+                className="text-[#94a3b8] hover:text-white transition-colors no-drag"
+              >
+                <Maximize2 size={16} />
+              </button>
+            </div>
+          </div>
+
+          <div className="text-center text-4xl mt-3 mb-2 text-[#4ade80] drop-shadow-[0_0_6px_rgba(74,222,128,0.7)]">
+            {formatTime(duration)}
+          </div>
+
+          <div className="h-12 bg-[#020617] border border-[#1e293b] rounded-md overflow-hidden relative">
+            <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
+            <Visualizer analyser={analyser} isActive={recordingState === RecordingState.RECORDING} />
+          </div>
+
+          <div className="mt-3 flex items-center justify-between">
+            <button
+              onClick={recordingState === RecordingState.RECORDING ? pauseRecording : resumeRecording}
+              className="flex-1 mr-2 bg-[#1e293b] hover:bg-[#0f172a] border border-[#334155] rounded-md py-2 flex items-center justify-center gap-2 text-sm transition-colors no-drag"
+            >
+              {recordingState === RecordingState.RECORDING ? (
+                <>
+                  <Pause size={16} />
+                  <span>Pause</span>
+                </>
+              ) : (
+                <>
+                  <Play size={16} />
+                  <span>Resume</span>
+                </>
+              )}
+            </button>
+            <button
+              onClick={stopRecording}
+              className="w-16 bg-[#ef4444] hover:bg-[#dc2626] border border-[#7f1d1d] rounded-md py-2 flex items-center justify-center text-sm font-semibold transition-colors no-drag"
+            >
+              Stop
+            </button>
+          </div>
         </div>
       )}
     </>
