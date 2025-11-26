@@ -3,8 +3,9 @@ import MacWindow from './components/MacWindow';
 import Visualizer from './components/Visualizer';
 import { useAudioRecorder } from './hooks/useAudioRecorder';
 import { Note, RecordingState } from './types';
-import { Mic, StopCircle, Play, Pause, Image as ImageIcon, Download, Plus, Pencil, Check, X, Monitor, ChevronDown, ChevronUp, Paperclip, Trash2, FileText, Music } from 'lucide-react';
+import { Mic, StopCircle, Play, Pause, Image as ImageIcon, Download, Plus, Pencil, Check, X, Monitor, ChevronDown, ChevronUp, Paperclip, Trash2 } from 'lucide-react';
 import { exportNotesToPDF } from './services/pdfService';
+import JSZip from 'jszip';
 
 const WINDOW_LAYOUTS = {
   minimized: { width: 340, height: 300, minWidth: 320, minHeight: 280 },
@@ -45,9 +46,6 @@ const App = () => {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
 
-  // Save Dialog State
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
-  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const notesEndRef = useRef<HTMLDivElement>(null);
   const isDesktopApp = Boolean(window.desktop);
@@ -201,6 +199,26 @@ const App = () => {
   };
 
   /**
+   * 生成当前音频的 WAV Blob 及文件名。
+   */
+  const buildAudioFilePayload = async () => {
+    if (!audioBlob) {
+      throw new Error('No audio available for export');
+    }
+    const baseFileName = `recording-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+    const wavBlob = await convertAudioBlobToWav(audioBlob);
+    const fileName = buildSafeFileName(baseFileName, 'wav');
+    return { blob: wavBlob, fileName, baseFileName };
+  };
+
+  /**
+   * 生成当前笔记的 PDF Blob 及文件名。
+   */
+  const buildNotesPdfPayload = () => {
+    return exportNotesToPDF('pdf-export-content', `Meeting Notes ${new Date().toLocaleDateString()}`);
+  };
+
+  /**
    * 统一处理 Blob 下载，避免重复的锚点创建代码。
    */
   const triggerBlobDownload = (blob: Blob, fileName: string) => {
@@ -291,7 +309,7 @@ const App = () => {
    */
   const handleExport = async () => {
     try {
-      const { blob, fileName } = await exportNotesToPDF('pdf-export-content', `Meeting Notes ${new Date().toLocaleDateString()}`);
+      const { blob, fileName } = await buildNotesPdfPayload();
       triggerBlobDownload(blob, fileName);
     } catch (error) {
       console.error('Failed to export PDF', error);
@@ -304,11 +322,9 @@ const App = () => {
    */
   const handleDownloadAudio = async () => {
     if (!audioBlob) return;
-    const baseFileName = `recording-${new Date().toISOString().replace(/[:.]/g, '-')}`;
     try {
-      const wavBlob = await convertAudioBlobToWav(audioBlob);
-      const fileName = buildSafeFileName(baseFileName, 'wav');
-      triggerBlobDownload(wavBlob, fileName);
+      const { blob, fileName } = await buildAudioFilePayload();
+      triggerBlobDownload(blob, fileName);
     } catch (error) {
       console.error('Failed to export WAV audio', error);
       alert('音频转换失败，请稍后重试。');
@@ -316,17 +332,28 @@ const App = () => {
   };
 
   /**
-   * 根据用户选择触发音频或音频+PDF 的下载任务。
+   * 自动根据是否存在笔记选择保存策略：无笔记直接下载音频，有笔记则打包音频+PDF。
    */
-  const handleSaveSelection = async (type: 'audio' | 'both') => {
+  const handleSaveRecording = async () => {
+    if (!audioBlob) return;
+    if (!hasNotes) {
+      await handleDownloadAudio();
+      return;
+    }
     try {
-      const jobs: Promise<void>[] = [handleDownloadAudio()];
-      if (type === 'both' && notes.length > 0) {
-        jobs.push(handleExport());
-      }
-      await Promise.all(jobs);
-    } finally {
-      setShowSaveDialog(false);
+      const [audioPayload, notesPayload] = await Promise.all([
+        buildAudioFilePayload(),
+        buildNotesPdfPayload(),
+      ]);
+      const zip = new JSZip();
+      zip.file(audioPayload.fileName, audioPayload.blob);
+      zip.file(notesPayload.fileName, notesPayload.blob);
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const zipFileName = buildSafeFileName(audioPayload.baseFileName, 'zip');
+      triggerBlobDownload(zipBlob, zipFileName);
+    } catch (error) {
+      console.error('Failed to export bundled download', error);
+      alert('打包下载失败，请稍后重试。');
     }
   };
 
@@ -448,43 +475,6 @@ const App = () => {
     {/* Main Interface Wrapper (Vertical Layout) */}
     <div className="flex-1 bg-[#d4d4d8] flex flex-col h-full relative overflow-hidden">
         
-        {/* Save Options Modal Overlay */}
-        {showSaveDialog && (
-            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[1px] p-6 animate-in fade-in duration-200">
-                <div className="w-full bg-[#e5e5e5] rounded-lg border-2 border-gray-500 shadow-2xl p-4 flex flex-col gap-3 relative">
-                     <div className="text-center font-bold text-gray-700 border-b border-gray-400 pb-2 mb-1">
-                        SAVE RECORDING
-                     </div>
-                     <div className="text-xs text-center text-gray-500 mb-2">How would you like to save?</div>
-                     
-                     <RetroButton onClick={() => handleSaveSelection('audio')} className="py-3 gap-2">
-                         <Music size={16} />
-                         <span className="text-xs font-bold">AUDIO ONLY</span>
-                     </RetroButton>
-
-                     {hasNotes ? (
-                         <RetroButton onClick={() => handleSaveSelection('both')} className="py-3 gap-2">
-                             <div className="flex gap-0.5">
-                                <Music size={16} />
-                                <Plus size={10} className="mt-1" />
-                                <FileText size={16} />
-                             </div>
-                             <span className="text-xs font-bold">AUDIO + PDF</span>
-                         </RetroButton>
-                     ) : (
-                         <div className="text-[10px] text-center text-gray-400 italic">No notes available for PDF</div>
-                     )}
-
-                     <button 
-                        onClick={() => setShowSaveDialog(false)}
-                        className="mt-2 text-xs text-gray-500 hover:text-gray-800 underline"
-                     >
-                        Cancel
-                     </button>
-                </div>
-            </div>
-        )}
-
         {/* --- TOP PANEL: RECORDER INTERFACE --- */}
         {/* Flex-none ensures it doesn't shrink, it takes only needed space */}
         <div className={`flex flex-col items-center w-full transition-all duration-300 z-20 shadow-md bg-[#d4d4d8] ${isMinimized ? 'p-3' : 'px-5 pt-5 pb-5'} ${!isNotesOpen && !isMinimized ? 'flex-1 pb-3' : ''}`}>
@@ -528,12 +518,12 @@ const App = () => {
                                 <div className="text-gray-600 font-mono text-xs uppercase tracking-widest mb-1">Recording Finished</div>
                                 <div className="flex gap-3 w-full">
                                     <RetroButton 
-                                        onClick={() => setShowSaveDialog(true)}
+                                        onClick={handleSaveRecording}
                                         className="flex-1 py-3 gap-2"
                                         variant="normal"
                                     >
                                         <Download size={16} />
-                                        <span className="font-bold text-xs">SAVE</span>
+                                        <span className="font-bold text-xs">{hasNotes ? 'SAVE ZIP' : 'SAVE WAV'}</span>
                                     </RetroButton>
                                     
                                     <RetroButton 
