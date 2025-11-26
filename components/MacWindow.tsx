@@ -62,12 +62,12 @@ const MacWindow: React.FC<MacWindowProps> = ({
         
         {/* Retro Header / Faceplate Top */}
         <div 
-          className="h-10 bg-gradient-to-b from-[#e5e7eb] to-[#d1d5db] border-b border-gray-400 flex items-center justify-between px-3 select-none shrink-0 shadow-sm drag-region"
+          className="h-10 bg-gradient-to-b from-[#e5e7eb] to-[#d1d5db] border-b border-gray-400 flex items-center justify-between px-3 select-none shrink-0 shadow-sm drag-region relative"
           onDoubleClick={onFullscreen}
         >
           
           {/* Jewel Buttons */}
-          <div className="flex items-center gap-2.5 no-drag">
+          <div className="flex items-center gap-2.5 no-drag z-10">
             <button
               type="button"
               onClick={onClose}
@@ -94,14 +94,14 @@ const MacWindow: React.FC<MacWindowProps> = ({
             </button>
           </div>
 
-          {/* Engraved Title */}
-          <div className="font-['Share_Tech_Mono'] text-gray-500 text-xs tracking-[0.2em] uppercase text-shadow-engraved cursor-default">
+          {/* Engraved Title - 绝对定位居中 */}
+          <div className="absolute left-1/2 -translate-x-1/2 font-['Share_Tech_Mono'] text-gray-500 text-xs tracking-[0.2em] uppercase text-shadow-engraved cursor-default">
             {title || 'RECORDER-3000'}
           </div>
 
           {/* Mini Mode Button (Right side) */}
           {onMiniMode && (
-            <div className="no-drag">
+            <div className="no-drag z-10">
               <button
                 type="button"
                 onClick={onMiniMode}
@@ -117,6 +117,8 @@ const MacWindow: React.FC<MacWindowProps> = ({
               </button>
             </div>
           )}
+          {/* 如果没有右侧按钮，添加一个占位元素以保持布局平衡 */}
+          {!onMiniMode && <div className="w-6"></div>}
         </div>
         
         {/* Main Interface */}
