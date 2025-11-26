@@ -907,7 +907,7 @@ const App = () => {
                                     </div>
                                     
                                     {note.imageUrl ? (
-                                        <div className="my-2 p-1 bg-white shadow-sm border border-gray-200 inline-block transform -rotate-1 relative group/image">
+                                        <div className="my-2 p-1 bg-white shadow-sm border border-gray-200 inline-block transform -rotate-1 relative group">
                                             <img 
                                                 src={note.imageUrl} 
                                                 alt="Attachment" 
@@ -919,7 +919,7 @@ const App = () => {
                                                     e.stopPropagation();
                                                     handleDeleteNote(note.id);
                                                 }}
-                                                className="absolute top-1 right-1 opacity-0 group-hover/image:opacity-100 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-opacity shadow-md"
+                                                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-opacity shadow-md z-10"
                                                 title="删除截图"
                                             >
                                                 <Trash2 size={12} />
@@ -944,21 +944,21 @@ const App = () => {
                                             </div>
                                         </div>
                                       ) : (
-                                        <div className="relative group/text">
+                                        <div className="relative group">
                                             <p className="font-serif text-base text-gray-800 leading-[2rem] break-words whitespace-pre-wrap">
                                                 {note.text}
                                             </p>
-                                            <div className="absolute -right-2 top-1 opacity-0 group-hover/text:opacity-100 flex gap-1 transition-opacity">
+                                            <div className="absolute -right-2 top-1 opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity z-10">
                                                 <button
                                                     onClick={() => handleStartEdit(note)}
-                                                    className="text-gray-400 hover:text-blue-600 p-1"
+                                                    className="text-gray-400 hover:text-blue-600 p-1 bg-white/90 rounded shadow-sm"
                                                     title="编辑"
                                                 >
                                                     <Pencil size={12} />
                                                 </button>
                                                 <button
                                                     onClick={() => handleDeleteNote(note.id)}
-                                                    className="text-gray-400 hover:text-red-600 p-1"
+                                                    className="text-gray-400 hover:text-red-600 p-1 bg-white/90 rounded shadow-sm"
                                                     title="删除"
                                                 >
                                                     <Trash2 size={12} />
