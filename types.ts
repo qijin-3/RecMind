@@ -23,6 +23,7 @@ declare global {
     version: string;
     send: (channel: string, payload?: unknown) => void;
     on: (channel: string, listener: (...args: unknown[]) => void) => () => void;
+    invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
   }
 
   interface Window {

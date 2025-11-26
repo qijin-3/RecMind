@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, desktopCapturer } from 'electron';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -121,6 +121,26 @@ function registerIpcHandlers() {
 
   ipcMain.on('window-control', (_event, payload) => {
     handleRendererWindowControl(payload?.action);
+  });
+
+  ipcMain.handle('capture-screen', async () => {
+    try {
+      const sources = await desktopCapturer.getSources({
+        types: ['screen'],
+        thumbnailSize: { width: 1920, height: 1080 }
+      });
+      
+      if (sources.length === 0) {
+        throw new Error('No screen sources available');
+      }
+      
+      // 获取主屏幕（通常是第一个）
+      const primarySource = sources[0];
+      return primarySource.thumbnail.toDataURL();
+    } catch (error) {
+      console.error('Screen capture failed:', error);
+      throw error;
+    }
   });
 }
 

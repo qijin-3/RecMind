@@ -3,7 +3,7 @@ import MacWindow from './components/MacWindow';
 import Visualizer from './components/Visualizer';
 import { useAudioRecorder } from './hooks/useAudioRecorder';
 import { Note, RecordingState } from './types';
-import { Mic, StopCircle, Play, Pause, Image as ImageIcon, Download, Plus, Pencil, Check, X, Monitor, ChevronDown, ChevronUp, Paperclip, Trash2, Minimize2, Maximize2 } from 'lucide-react';
+import { Mic, StopCircle, Play, Pause, Image as ImageIcon, Download, Plus, Pencil, Check, X, Monitor, ChevronDown, ChevronUp, Paperclip, Trash2, Minimize2, Maximize2, Camera } from 'lucide-react';
 import { exportNotesToPDF } from './services/pdfService';
 import JSZip from 'jszip';
 
@@ -321,6 +321,66 @@ const App = () => {
         setNotes(prev => [...prev, newNote]);
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  /**
+   * 捕获屏幕截图并自动添加到笔记中。
+   */
+  const handleCaptureScreen = async () => {
+    try {
+      let imageDataUrl: string;
+
+      if (isDesktopApp && window.desktop?.invoke) {
+        // Electron 环境：使用 desktopCapturer API
+        imageDataUrl = await window.desktop.invoke('capture-screen') as string;
+      } else {
+        // Web 环境：使用 getDisplayMedia API
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: { mediaSource: 'screen' } as any,
+          audio: false,
+        });
+        
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.play();
+        
+        await new Promise((resolve) => {
+          video.onloadedmetadata = () => {
+            video.play();
+            resolve(null);
+          };
+        });
+        
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Failed to get canvas context');
+        
+        ctx.drawImage(video, 0, 0);
+        imageDataUrl = canvas.toDataURL('image/png');
+        
+        // 停止所有轨道
+        stream.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+      }
+
+      // 将截图添加到笔记
+      const timestamp = duration * 1000;
+      const newNote: Note = {
+        id: crypto.randomUUID(),
+        timestamp,
+        text: 'Screen Capture',
+        imageUrl: imageDataUrl,
+        createdAt: new Date(),
+      };
+      setNotes(prev => [...prev, newNote]);
+    } catch (error) {
+      console.error('Screen capture failed:', error);
+      alert('截图失败，请稍后重试。');
     }
   };
 
@@ -837,10 +897,10 @@ const App = () => {
             <Visualizer analyser={analyser} isActive={recordingState === RecordingState.RECORDING} />
           </div>
 
-          <div className="mt-3 flex items-center justify-between">
+          <div className="mt-3 flex items-center gap-2">
             <button
               onClick={recordingState === RecordingState.RECORDING ? pauseRecording : resumeRecording}
-              className="flex-1 mr-2 bg-[#1e293b] hover:bg-[#0f172a] border border-[#334155] rounded-md py-2 flex items-center justify-center gap-2 text-sm transition-colors no-drag"
+              className="flex-1 bg-[#1e293b] hover:bg-[#0f172a] border border-[#334155] rounded-md py-2 flex items-center justify-center gap-2 text-sm transition-colors no-drag"
             >
               {recordingState === RecordingState.RECORDING ? (
                 <>
@@ -853,6 +913,13 @@ const App = () => {
                   <span>Resume</span>
                 </>
               )}
+            </button>
+            <button
+              onClick={handleCaptureScreen}
+              className="w-12 h-10 bg-[#1e293b] hover:bg-[#0f172a] border border-[#334155] rounded-md flex items-center justify-center transition-colors no-drag"
+              title="Capture Screen"
+            >
+              <Camera size={16} />
             </button>
             <button
               onClick={stopRecording}
