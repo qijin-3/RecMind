@@ -109,10 +109,10 @@ const MacWindow: React.FC<MacWindowProps> = ({
                 onClick={onMiniMode}
                 disabled={isMiniModeEnabled}
                 aria-label="Enter mini mode"
-                className={`w-6 h-6 rounded-md bg-white/80 border border-gray-300 flex items-center justify-center transition-all ${
+                className={`w-6 h-6 rounded-md flex items-center justify-center transition-all ${
                   isMiniModeEnabled 
                     ? 'opacity-50 cursor-not-allowed' 
-                    : 'cursor-pointer hover:bg-gray-100 active:scale-95'
+                    : 'cursor-pointer active:scale-95'
                 }`}
               >
                 <Minimize2 size={14} className="text-gray-600" />
