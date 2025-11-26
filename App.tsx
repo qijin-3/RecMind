@@ -51,6 +51,9 @@ const App = () => {
   // Image Viewer State
   const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
 
+  // Toast 提示状态
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const notesEndRef = useRef<HTMLDivElement>(null);
   const isDesktopApp = Boolean(window.desktop);
@@ -317,7 +320,7 @@ const App = () => {
         const newNote: Note = {
           id: crypto.randomUUID(),
           timestamp,
-          text: 'Attached Image',
+          text: '',
           imageUrl: reader.result as string,
           createdAt: new Date(),
         };
@@ -329,45 +332,41 @@ const App = () => {
 
   /**
    * 捕获屏幕截图并自动添加到笔记中。
-   * 使用 desktopCapturer + getUserMedia 方案。
+   * 使用 desktopCapturer + getUserMedia 方案捕获应用所在显示器的完整内容。
    */
   const handleCaptureScreen = async () => {
     try {
-      let imageDataUrl: string;
+      let imageDataUrl: string | undefined;
 
       if (isDesktopApp && window.desktop?.invoke) {
         // Electron 环境：使用 desktopCapturer + getUserMedia
         try {
-          // 步骤1: 获取可用的屏幕源列表
+          // 步骤1: 获取可用的屏幕源列表（主进程已按优先级排序，当前显示器在前）
           const sources = await window.desktop.invoke('get-screen-sources') as Array<{
             id: string;
             name: string;
             thumbnail: string;
-            type?: 'screen' | 'window';
+            type: 'screen';
+            displayId: string;
+            isCurrentDisplay: boolean;
+            displayBounds: { x: number; y: number; width: number; height: number } | null;
           }>;
           
           if (!sources || sources.length === 0) {
             throw new Error('No screen sources available');
           }
           
-          // 步骤2: 优先选择整个屏幕的源（screen 类型），而不是窗口
-          // 在 macOS 上，整个屏幕通常命名为 "Entire Screen" 或 "Screen 1"
-          let screenSource = sources.find(source => {
-            const name = source.name.toLowerCase();
-            return (
-              source.type === 'screen' ||
-              name.includes('entire screen') ||
-              name === 'screen 1' ||
-              name.includes('display 1')
-            );
-          });
+          console.log('Available screen sources:', sources.map(s => ({
+            name: s.name,
+            displayId: s.displayId,
+            isCurrentDisplay: s.isCurrentDisplay
+          })));
           
-          // 如果没有找到明确的屏幕源，选择第一个 screen 类型的源
-          if (!screenSource) {
-            screenSource = sources.find(source => source.type === 'screen');
-          }
+          // 步骤2: 优先选择当前窗口所在的显示器
+          // 主进程已经按优先级排序，isCurrentDisplay=true 的会排在前面
+          let screenSource = sources.find(source => source.isCurrentDisplay);
           
-          // 最后回退到第一个源
+          // 如果没有找到当前显示器的源，回退到第一个屏幕源
           if (!screenSource) {
             screenSource = sources[0];
           }
@@ -376,13 +375,15 @@ const App = () => {
             throw new Error('No suitable screen source found');
           }
           
-          console.log('Selected screen source:', screenSource.name, screenSource.type);
+          console.log('Selected screen source:', screenSource.name, 'displayId:', screenSource.displayId, 'isCurrentDisplay:', screenSource.isCurrentDisplay);
           
-          // 步骤3: 使用 getUserMedia 捕获屏幕流
+          // 步骤3: 使用 getUserMedia 捕获整个屏幕流
           if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             throw new Error('getUserMedia API not available');
           }
           
+          // 使用 mandatory 约束来指定 chromeMediaSource 和 chromeMediaSourceId
+          // 这会捕获整个显示器的内容，而不仅仅是应用窗口
           const stream = await navigator.mediaDevices.getUserMedia({
             audio: false,
             video: {
@@ -390,6 +391,11 @@ const App = () => {
               mandatory: {
                 chromeMediaSource: 'desktop',
                 chromeMediaSourceId: screenSource.id,
+                // 不设置宽高限制，让系统使用实际分辨率
+                minWidth: 1,
+                minHeight: 1,
+                maxWidth: 8192,
+                maxHeight: 8192,
               }
             } as any
           });
@@ -404,24 +410,30 @@ const App = () => {
           await new Promise<void>((resolve, reject) => {
             video.onloadedmetadata = () => {
               video.play().then(() => {
-                // 等待一帧以确保画面已渲染
+                // 等待足够时间确保帧已渲染
                 requestAnimationFrame(() => {
-                  setTimeout(resolve, 100);
+                  requestAnimationFrame(() => {
+                    setTimeout(resolve, 200);
+                  });
                 });
               }).catch(reject);
             };
-            video.onerror = (e) => reject(new Error('Video load error'));
+            video.onerror = () => reject(new Error('Video load error'));
             // 设置超时
-            setTimeout(() => reject(new Error('Video load timeout')), 5000);
+            setTimeout(() => reject(new Error('Video load timeout')), 8000);
           });
           
+          // 使用视频的实际尺寸，这是整个显示器的分辨率
           const canvas = document.createElement('canvas');
-          canvas.width = video.videoWidth || 1920;
-          canvas.height = video.videoHeight || 1080;
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          
+          console.log('Captured screen dimensions:', canvas.width, 'x', canvas.height);
+          
           const ctx = canvas.getContext('2d');
           if (!ctx) throw new Error('Failed to get canvas context');
           
-          ctx.drawImage(video, 0, 0);
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
           imageDataUrl = canvas.toDataURL('image/png');
           
           // 清理资源
@@ -431,13 +443,13 @@ const App = () => {
           canvas.remove();
           
         } catch (electronError) {
-          console.error('Electron capture failed, falling back to web API:', electronError);
+          console.error('Electron capture failed:', electronError);
           // 如果 Electron 截图失败，回退到 Web API
           throw electronError;
         }
       }
       
-      // Web 环境或 Electron 回退：使用 getDisplayMedia API
+      // Web 环境或 Electron 回退：使用 getDisplayMedia API（需要用户选择）
       if (!imageDataUrl) {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
           throw new Error('Screen capture API not available');
@@ -445,9 +457,9 @@ const App = () => {
         
         const stream = await navigator.mediaDevices.getDisplayMedia({
           video: { 
-            mediaSource: 'screen',
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
+            displaySurface: 'monitor', // 明确指定捕获整个显示器
+            width: { ideal: 3840 },
+            height: { ideal: 2160 }
           } as any,
           audio: false,
         });
@@ -467,8 +479,8 @@ const App = () => {
         });
         
         const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth || 1920;
-        canvas.height = video.videoHeight || 1080;
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
         const ctx = canvas.getContext('2d');
         if (!ctx) throw new Error('Failed to get canvas context');
         
@@ -482,16 +494,22 @@ const App = () => {
         canvas.remove();
       }
 
-      // 将截图添加到笔记
+      // 将截图添加到笔记（不添加文字说明，仅保存图片）
       const timestamp = duration * 1000;
       const newNote: Note = {
         id: crypto.randomUUID(),
         timestamp,
-        text: 'Screen Capture',
+        text: '',
         imageUrl: imageDataUrl,
         createdAt: new Date(),
       };
       setNotes(prev => [...prev, newNote]);
+
+      // 如果笔记面板是收起状态或处于迷你浮窗模式，显示截图成功提示
+      if (!isNotesOpen || isMiniFloatingMode) {
+        setToastMessage('截图已保存');
+        setTimeout(() => setToastMessage(null), 2000);
+      }
     } catch (error) {
       console.error('Screen capture failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -909,7 +927,9 @@ const App = () => {
                                         </div>
                                     ) : null}
                                     
-                                    {editingNoteId === note.id ? (
+                                    {/* 仅当有文字内容时才显示文字区域 */}
+                                    {note.text.trim() && (
+                                      editingNoteId === note.id ? (
                                         <div className="relative z-20 mt-1">
                                             <textarea
                                                 value={editText}
@@ -923,7 +943,7 @@ const App = () => {
                                                 <button onClick={() => handleSaveEdit(note.id)} className="p-1 text-green-600 hover:bg-green-100 rounded"><Check size={14} /></button>
                                             </div>
                                         </div>
-                                    ) : (
+                                      ) : (
                                         <div className="relative group/text">
                                             <p className="font-serif text-base text-gray-800 leading-[2rem] break-words whitespace-pre-wrap">
                                                 {note.text}
@@ -945,6 +965,7 @@ const App = () => {
                                                 </button>
                                             </div>
                                         </div>
+                                      )
                                     )}
                                 </div>
                             ))}
@@ -1107,6 +1128,16 @@ const App = () => {
             >
               <X size={24} />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Toast 提示 */}
+      {toastMessage && (
+        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[200] animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="bg-gray-900/90 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 font-mono text-sm">
+            <Camera size={16} className="text-green-400" />
+            <span>{toastMessage}</span>
           </div>
         </div>
       )}

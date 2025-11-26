@@ -126,36 +126,67 @@ function registerIpcHandlers() {
   /**
    * 获取可用的屏幕源列表，供渲染进程使用 getUserMedia 捕获。
    * 只返回整个屏幕的源（screen 类型），不包含窗口。
+   * 会返回当前窗口所在显示器的 ID，帮助渲染进程选择正确的屏幕。
    */
   ipcMain.handle('get-screen-sources', async () => {
     try {
-      const primaryDisplay = screen.getPrimaryDisplay();
-      const { width, height } = primaryDisplay.size;
+      // 获取当前窗口所在的显示器（而不是主显示器）
+      const allDisplays = screen.getAllDisplays();
+      let targetDisplay = screen.getPrimaryDisplay();
+      
+      // 如果主窗口存在，获取窗口所在的显示器
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        const windowBounds = mainWindow.getBounds();
+        targetDisplay = screen.getDisplayMatching(windowBounds);
+      }
+      
+      // 获取最大分辨率用于缩略图
+      const maxWidth = Math.max(...allDisplays.map(d => d.size.width));
+      const maxHeight = Math.max(...allDisplays.map(d => d.size.height));
       
       // 只获取屏幕源，不包含窗口
       const sources = await desktopCapturer.getSources({
         types: ['screen'],
-        thumbnailSize: { width, height },
+        thumbnailSize: { width: maxWidth, height: maxHeight },
         fetchWindowIcons: false
       });
       
-      // 返回源列表，包含 id、name 和类型
-      // 在 macOS 上，整个屏幕通常命名为 "Entire Screen" 或 "Screen 1"
-      const screenSources = sources.map(source => ({
-        id: source.id,
-        name: source.name,
-        thumbnail: source.thumbnail.toDataURL(),
-        type: 'screen'
-      }));
+      // 返回源列表，包含 id、name、类型和 display_id
+      // display_id 用于匹配当前窗口所在的显示器
+      const screenSources = sources.map(source => {
+        // source.display_id 对应 screen.getAllDisplays() 中的 display.id
+        const displayId = source.display_id;
+        const isCurrentDisplay = displayId === String(targetDisplay.id);
+        
+        return {
+          id: source.id,
+          name: source.name,
+          thumbnail: source.thumbnail.toDataURL(),
+          type: 'screen',
+          displayId: displayId,
+          isCurrentDisplay: isCurrentDisplay,
+          displayBounds: isCurrentDisplay ? targetDisplay.bounds : null
+        };
+      });
       
-      // 按名称排序，优先选择 "Entire Screen"
+      // 优先排序：当前窗口所在显示器 > "Entire Screen" > 其他
       screenSources.sort((a, b) => {
+        // 当前显示器优先
+        if (a.isCurrentDisplay && !b.isCurrentDisplay) return -1;
+        if (!a.isCurrentDisplay && b.isCurrentDisplay) return 1;
+        
         const aName = a.name.toLowerCase();
         const bName = b.name.toLowerCase();
         if (aName.includes('entire screen')) return -1;
         if (bName.includes('entire screen')) return 1;
         return aName.localeCompare(bName);
       });
+      
+      console.log('Screen sources found:', screenSources.map(s => ({
+        name: s.name,
+        displayId: s.displayId,
+        isCurrentDisplay: s.isCurrentDisplay
+      })));
       
       return screenSources;
     } catch (error) {
