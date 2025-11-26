@@ -13,6 +13,7 @@ interface MacWindowProps {
   isMiniModeEnabled?: boolean;
   width?: number | string;
   height?: number | 'auto' | string;
+  contentAutoHeight?: boolean;
 }
 
 /**
@@ -30,6 +31,7 @@ const MacWindow: React.FC<MacWindowProps> = ({
   isMiniModeEnabled = false,
   width,
   height,
+  contentAutoHeight = false,
 }) => {
   const resolvedWidth = typeof width === 'number' ? `${width}px` : width;
   let resolvedHeight: string | undefined;
@@ -46,7 +48,7 @@ const MacWindow: React.FC<MacWindowProps> = ({
     <div 
       style={{ 
         width: resolvedWidth, 
-        height: resolvedHeight
+        ...(contentAutoHeight ? {} : { height: resolvedHeight })
       }}
       className={`relative flex flex-col transition-all duration-200 ease-out ${className}`}
     >
@@ -58,7 +60,7 @@ const MacWindow: React.FC<MacWindowProps> = ({
       <div className="absolute inset-[3px] rounded-lg bg-gradient-to-br from-[#f3f4f6] to-[#d1d5db] z-0 pointer-events-none border border-white/50"></div>
 
       {/* Content Container */}
-      <div className="relative z-10 flex flex-col h-full rounded-lg overflow-hidden m-[6px] border border-gray-400 bg-[#e5e5e5]">
+      <div className={`relative z-10 flex flex-col rounded-lg overflow-hidden m-[6px] border border-gray-400 bg-[#e5e5e5] ${contentAutoHeight ? '' : 'h-full'}`}>
         
         {/* Retro Header / Faceplate Top */}
         <div 
@@ -122,7 +124,7 @@ const MacWindow: React.FC<MacWindowProps> = ({
         </div>
         
         {/* Main Interface */}
-        <div className="flex-1 flex flex-col relative overflow-hidden">
+        <div className={`flex flex-col relative overflow-hidden ${contentAutoHeight ? 'flex-none' : 'flex-1 min-h-0'}`}>
           {children}
         </div>
       </div>

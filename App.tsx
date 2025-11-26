@@ -715,13 +715,14 @@ const App = () => {
       isMiniModeEnabled={isMiniFloatingMode}
       isMinimized={isMinimized}
       className={isDesktopApp ? 'w-full h-full' : ''}
+      contentAutoHeight={!isNotesOpen && !isMinimized}
     >
     {/* Main Interface Wrapper (Vertical Layout) */}
-    <div className="flex-1 bg-[#d4d4d8] flex flex-col h-full relative overflow-hidden min-h-0">
+    <div className={`bg-[#d4d4d8] flex flex-col relative overflow-hidden ${isNotesOpen ? 'flex-1 h-full min-h-0' : 'flex-none'}`}>
         
         {/* --- TOP PANEL: RECORDER INTERFACE --- */}
         {/* Flex-none ensures it doesn't shrink, it takes only needed space */}
-        <div className={`flex flex-col items-center w-full transition-all duration-300 z-20 shadow-md bg-[#d4d4d8] flex-none shrink-0 ${isMinimized ? 'p-3' : 'px-5 pt-5 pb-5'} ${!isNotesOpen && !isMinimized ? 'flex-1 pb-3' : ''}`}>
+        <div className={`flex flex-col items-center w-full transition-all duration-300 z-20 shadow-md bg-[#d4d4d8] flex-none shrink-0 ${isMinimized ? 'p-3' : 'px-5 pt-5 pb-5'}`}>
 
             {/* LCD Display Panel - Compact */}
             <div className={`w-full bg-[#111827] rounded-lg p-1 border-2 border-gray-500 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] ${isMinimized ? 'mb-2' : 'mb-5'}`}>
@@ -751,7 +752,7 @@ const App = () => {
             </div>
 
             {/* Controls Area */}
-            <div className={`flex flex-col items-center gap-4 w-full ${!isNotesOpen && !isMinimized ? 'mt-auto' : ''}`}>
+            <div className="flex flex-col items-center gap-4 w-full">
                 
                 {/* IDLE STATE: Config & Start */}
                 {!isMinimized && recordingState === RecordingState.IDLE && (
