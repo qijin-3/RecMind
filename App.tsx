@@ -326,37 +326,146 @@ const App = () => {
 
   /**
    * 捕获屏幕截图并自动添加到笔记中。
+   * 使用 desktopCapturer + getUserMedia 方案。
    */
   const handleCaptureScreen = async () => {
     try {
       let imageDataUrl: string;
 
       if (isDesktopApp && window.desktop?.invoke) {
-        // Electron 环境：使用 desktopCapturer API
-        imageDataUrl = await window.desktop.invoke('capture-screen') as string;
-      } else {
-        // Web 环境：使用 getDisplayMedia API
+        // Electron 环境：使用 desktopCapturer + getUserMedia
+        try {
+          // 步骤1: 获取可用的屏幕源列表
+          const sources = await window.desktop.invoke('get-screen-sources') as Array<{
+            id: string;
+            name: string;
+            thumbnail: string;
+            type?: 'screen' | 'window';
+          }>;
+          
+          if (!sources || sources.length === 0) {
+            throw new Error('No screen sources available');
+          }
+          
+          // 步骤2: 优先选择整个屏幕的源（screen 类型），而不是窗口
+          // 在 macOS 上，整个屏幕通常命名为 "Entire Screen" 或 "Screen 1"
+          let screenSource = sources.find(source => {
+            const name = source.name.toLowerCase();
+            return (
+              source.type === 'screen' ||
+              name.includes('entire screen') ||
+              name === 'screen 1' ||
+              name.includes('display 1')
+            );
+          });
+          
+          // 如果没有找到明确的屏幕源，选择第一个 screen 类型的源
+          if (!screenSource) {
+            screenSource = sources.find(source => source.type === 'screen');
+          }
+          
+          // 最后回退到第一个源
+          if (!screenSource) {
+            screenSource = sources[0];
+          }
+          
+          if (!screenSource) {
+            throw new Error('No suitable screen source found');
+          }
+          
+          console.log('Selected screen source:', screenSource.name, screenSource.type);
+          
+          // 步骤3: 使用 getUserMedia 捕获屏幕流
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('getUserMedia API not available');
+          }
+          
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: {
+              // @ts-ignore - Electron 扩展的约束
+              mandatory: {
+                chromeMediaSource: 'desktop',
+                chromeMediaSourceId: screenSource.id,
+              }
+            } as any
+          });
+          
+          // 步骤4: 将视频流绘制到 canvas
+          const video = document.createElement('video');
+          video.srcObject = stream;
+          video.muted = true;
+          video.playsInline = true;
+          video.autoplay = true;
+          
+          await new Promise<void>((resolve, reject) => {
+            video.onloadedmetadata = () => {
+              video.play().then(() => {
+                // 等待一帧以确保画面已渲染
+                requestAnimationFrame(() => {
+                  setTimeout(resolve, 100);
+                });
+              }).catch(reject);
+            };
+            video.onerror = (e) => reject(new Error('Video load error'));
+            // 设置超时
+            setTimeout(() => reject(new Error('Video load timeout')), 5000);
+          });
+          
+          const canvas = document.createElement('canvas');
+          canvas.width = video.videoWidth || 1920;
+          canvas.height = video.videoHeight || 1080;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) throw new Error('Failed to get canvas context');
+          
+          ctx.drawImage(video, 0, 0);
+          imageDataUrl = canvas.toDataURL('image/png');
+          
+          // 清理资源
+          stream.getTracks().forEach(track => track.stop());
+          video.srcObject = null;
+          video.remove();
+          canvas.remove();
+          
+        } catch (electronError) {
+          console.error('Electron capture failed, falling back to web API:', electronError);
+          // 如果 Electron 截图失败，回退到 Web API
+          throw electronError;
+        }
+      }
+      
+      // Web 环境或 Electron 回退：使用 getDisplayMedia API
+      if (!imageDataUrl) {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+          throw new Error('Screen capture API not available');
+        }
+        
         const stream = await navigator.mediaDevices.getDisplayMedia({
-          video: { mediaSource: 'screen' } as any,
+          video: { 
+            mediaSource: 'screen',
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          } as any,
           audio: false,
         });
         
         const video = document.createElement('video');
         video.srcObject = stream;
-        video.play();
+        video.muted = true;
+        video.playsInline = true;
         
-        await new Promise((resolve) => {
+        await new Promise<void>((resolve, reject) => {
           video.onloadedmetadata = () => {
-            video.play();
-            resolve(null);
+            video.play().then(() => {
+              setTimeout(resolve, 300);
+            }).catch(reject);
           };
+          video.onerror = () => reject(new Error('Video load error'));
         });
         
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        
         const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        canvas.width = video.videoWidth || 1920;
+        canvas.height = video.videoHeight || 1080;
         const ctx = canvas.getContext('2d');
         if (!ctx) throw new Error('Failed to get canvas context');
         
@@ -366,6 +475,8 @@ const App = () => {
         // 停止所有轨道
         stream.getTracks().forEach(track => track.stop());
         video.srcObject = null;
+        video.remove();
+        canvas.remove();
       }
 
       // 将截图添加到笔记
@@ -380,7 +491,8 @@ const App = () => {
       setNotes(prev => [...prev, newNote]);
     } catch (error) {
       console.error('Screen capture failed:', error);
-      alert('截图失败，请稍后重试。');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`截图失败: ${errorMessage}。请稍后重试。`);
     }
   };
 
@@ -688,6 +800,15 @@ const App = () => {
                          </div>
 
                          <div className="flex items-center gap-2">
+                            {/* Screenshot Button */}
+                            <RetroButton 
+                                onClick={handleCaptureScreen}
+                                className="w-12 h-12 rounded-lg text-gray-600 bg-white/80 border border-gray-300"
+                                title="Capture Screen"
+                            >
+                                <Camera size={18} />
+                            </RetroButton>
+                            
                             {/* Toggle Notes Button (Only visible if not minimized) */}
                             {!isMinimized && (
                                 <RetroButton 

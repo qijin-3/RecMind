@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, desktopCapturer } from 'electron';
+import { app, BrowserWindow, ipcMain, desktopCapturer, screen } from 'electron';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -123,22 +123,43 @@ function registerIpcHandlers() {
     handleRendererWindowControl(payload?.action);
   });
 
-  ipcMain.handle('capture-screen', async () => {
+  /**
+   * 获取可用的屏幕源列表，供渲染进程使用 getUserMedia 捕获。
+   * 只返回整个屏幕的源（screen 类型），不包含窗口。
+   */
+  ipcMain.handle('get-screen-sources', async () => {
     try {
+      const primaryDisplay = screen.getPrimaryDisplay();
+      const { width, height } = primaryDisplay.size;
+      
+      // 只获取屏幕源，不包含窗口
       const sources = await desktopCapturer.getSources({
         types: ['screen'],
-        thumbnailSize: { width: 1920, height: 1080 }
+        thumbnailSize: { width, height },
+        fetchWindowIcons: false
       });
       
-      if (sources.length === 0) {
-        throw new Error('No screen sources available');
-      }
+      // 返回源列表，包含 id、name 和类型
+      // 在 macOS 上，整个屏幕通常命名为 "Entire Screen" 或 "Screen 1"
+      const screenSources = sources.map(source => ({
+        id: source.id,
+        name: source.name,
+        thumbnail: source.thumbnail.toDataURL(),
+        type: 'screen'
+      }));
       
-      // 获取主屏幕（通常是第一个）
-      const primarySource = sources[0];
-      return primarySource.thumbnail.toDataURL();
+      // 按名称排序，优先选择 "Entire Screen"
+      screenSources.sort((a, b) => {
+        const aName = a.name.toLowerCase();
+        const bName = b.name.toLowerCase();
+        if (aName.includes('entire screen')) return -1;
+        if (bName.includes('entire screen')) return 1;
+        return aName.localeCompare(bName);
+      });
+      
+      return screenSources;
     } catch (error) {
-      console.error('Screen capture failed:', error);
+      console.error('Failed to get screen sources:', error);
       throw error;
     }
   });
