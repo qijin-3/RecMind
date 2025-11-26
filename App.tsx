@@ -9,7 +9,7 @@ import JSZip from 'jszip';
 
 const WINDOW_LAYOUTS = {
   minimized: { width: 340, height: 300, minWidth: 320, minHeight: 280 },
-  default: { width: 420, height: 640, minWidth: 360, minHeight: 520 },
+  default: { width: 420, height: 312, minWidth: 360, minHeight: 312 },
   notes: { width: 520, height: 860, minWidth: 480, minHeight: 720 },
   miniFloating: { width: 380, height: 220, minWidth: 360, minHeight: 200 },
 } as const;
