@@ -12,11 +12,8 @@ export default defineConfig(({ mode }) => {
       base: './',
       plugins: [react()],
       define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         'global': 'globalThis',
       },
-      envPrefix: ['VITE_', 'GEMINI_'],
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
@@ -24,7 +21,6 @@ export default defineConfig(({ mode }) => {
       },
       optimizeDeps: {
         exclude: [],
-        include: ['@google/genai']
       }
     };
 });

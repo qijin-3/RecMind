@@ -117,7 +117,6 @@ RecMind/
 ├── hooks/               # React Hooks
 │   └── useAudioRecorder.ts  # 音频录制 Hook
 ├── services/            # 业务服务
-│   ├── geminiService.ts    # Gemini AI 服务
 │   └── pdfService.ts       # PDF 导出服务
 ├── types/               # TypeScript 类型定义
 ├── App.tsx              # 主应用组件
@@ -135,7 +134,6 @@ RecMind/
 - **Vite 6.2.0** - 构建工具
 
 ### 主要依赖
-- **@google/genai** - Google Gemini AI 集成
 - **html2canvas** - HTML 转 Canvas
 - **jspdf** - PDF 生成
 - **jszip** - ZIP 文件处理
@@ -180,11 +178,6 @@ RecMind/
 
 创建 `.env.local` 文件（可选）：
 
-```env
-VITE_GEMINI_API_KEY=your_gemini_api_key_here
-```
-
-> **注意**：Gemini API Key 用于 AI 功能（如笔记摘要），如果不需要可以忽略。
 
 ### Electron 配置
 
