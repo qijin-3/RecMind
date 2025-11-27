@@ -8,9 +8,9 @@ import { exportNotesToPDF } from './services/pdfService';
 import JSZip from 'jszip';
 
 const WINDOW_LAYOUTS = {
-  minimized: { width: 340, height: 300, minWidth: 320, minHeight: 280 },
-  default: { width: 420, height: 320, minWidth: 360, minHeight: 320 },
-  notes: { width: 520, height: 860, minWidth: 480, minHeight: 720 },
+  minimized: { width: 340, height: 320, minWidth: 320, minHeight: 300 },
+  default: { width: 420, height: 320, minWidth: 360, minHeight: 300 },
+  notes: { width: 520, height: 720, minWidth: 480, minHeight: 600 },
   miniFloating: { width: 280, height: 140, minWidth: 260, minHeight: 120 },
 } as const;
 
@@ -637,12 +637,21 @@ const App = () => {
   const isPreRecordingState = recordingState === RecordingState.IDLE && !audioBlob;
 
   useEffect(() => {
-    // 统一使用 default 布局的高度（320px），保持三个状态一致
+    // 统一使用 default 布局的高度（320px），保持未录音、录音中、录音结束后三个状态一致
     const layout = WINDOW_LAYOUTS[layoutKey];
-    // 如果不在 notes 模式，统一使用 default 的高度
-    const finalLayout = layoutKey === 'notes' 
+    // 如果不在 notes 模式，统一使用 default 的高度 320px
+    let finalLayout = layoutKey === 'notes' 
       ? layout 
       : { ...layout, height: WINDOW_LAYOUTS.default.height };
+    
+    // 针对低分辨率屏幕：限制笔记模式的最大高度，确保不超出屏幕
+    if (layoutKey === 'notes' && typeof window !== 'undefined') {
+      const maxHeight = window.innerHeight - 100; // 预留 100px 给系统栏和边距
+      if (finalLayout.height > maxHeight) {
+        finalLayout = { ...finalLayout, height: Math.max(finalLayout.minHeight || 600, maxHeight) };
+      }
+    }
+    
     setWindowSize({ width: finalLayout.width, height: finalLayout.height });
 
     if (window.desktop?.send) {
@@ -697,25 +706,30 @@ const App = () => {
     );
   };
 
-  // Skeuomorphic Toggle Component
+  /**
+   * 水平方向的复古风格开关组件
+   * @param label - 开关标签（MIC 或 SYS）
+   * @param checked - 是否选中
+   * @param onChange - 切换回调
+   * @param icon - 图标组件
+   */
   const RetroToggle = ({ label, checked, onChange, icon: Icon }: any) => (
-    <div className="flex flex-col items-center gap-1 group">
+    <div className="flex flex-row items-center gap-2 group">
+      <div className="flex items-center gap-1.5">
+        {Icon && <Icon size={14} className={`transition-colors ${checked ? 'text-gray-800' : 'text-gray-500'}`} />}
+        <span className="font-mono text-xs font-bold tracking-wider uppercase text-gray-700 group-hover:text-gray-900 transition-colors">{label}</span>
+      </div>
       <div 
         onClick={() => onChange(!checked)}
-        className={`w-10 h-16 rounded-md border-2 cursor-pointer relative transition-colors shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)] ${checked ? 'bg-gray-800 border-gray-900' : 'bg-[#e5e5e5] border-gray-400'}`}
+        className={`w-14 h-7 rounded-full border-2 cursor-pointer relative transition-colors shadow-[inset_2px_2px_4px_rgba(0,0,0,0.2)] ${checked ? 'bg-green-500 border-green-600' : 'bg-gray-300 border-gray-400'}`}
       >
-        {/* The Switch Lever */}
-        <div className={`absolute left-0.5 right-0.5 h-7 rounded-sm bg-gradient-to-b from-gray-300 to-gray-400 border border-gray-500 shadow-[1px_1px_3px_rgba(0,0,0,0.4)] transition-all duration-200 ease-out flex items-center justify-center ${checked ? 'top-1' : 'bottom-1'}`}>
-           {/* Grip lines */}
-           <div className="w-3/4 h-full flex flex-col justify-center gap-[2px]">
-             <div className="w-full h-[1px] bg-gray-400/50"></div>
-             <div className="w-full h-[1px] bg-gray-400/50"></div>
-           </div>
-           {checked && <div className="absolute w-1 h-1 rounded-full bg-green-400 shadow-[0_0_4px_rgba(74,222,128,0.8)]" />}
+        {/* The Switch Lever - 水平滑动 */}
+        <div className={`absolute top-0.5 bottom-0.5 w-6 rounded-full bg-gradient-to-b from-white to-gray-200 border border-gray-400 shadow-[1px_1px_3px_rgba(0,0,0,0.3)] transition-all duration-200 ease-out flex items-center justify-center ${checked ? 'right-0.5' : 'left-0.5'}`}>
+           {/* 开关内部指示点 */}
+           {checked && (
+             <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_3px_rgba(74,222,128,0.6)]" />
+           )}
         </div>
-      </div>
-      <div className="flex items-center gap-1 text-gray-600">
-        <span className="font-mono text-[9px] font-bold tracking-wider uppercase group-hover:text-gray-900 transition-colors">{label}</span>
       </div>
     </div>
   );
@@ -738,11 +752,11 @@ const App = () => {
     <div className={`bg-[#d4d4d8] flex flex-col relative overflow-hidden ${isNotesOpen ? 'flex-1 h-full min-h-0' : 'h-full'}`}>
         
         {/* --- TOP PANEL: RECORDER INTERFACE --- */}
-        {/* 使用 flex-1 占据剩余空间，让按钮区域固定在底部 */}
-        <div className={`flex flex-col items-center w-full transition-all duration-300 z-20 shadow-md bg-[#d4d4d8] flex-1 ${isMinimized ? 'p-3' : 'px-5 pt-5 pb-5'} ${!isNotesOpen && !isMinimized ? 'justify-between' : ''}`}>
+        {/* 所有模式下都使用 flex-none，只占据内容所需空间，确保高度一致为 320px */}
+        <div className={`flex flex-col items-center w-full transition-all duration-300 z-20 shadow-md bg-[#d4d4d8] flex-none shrink-0 ${isMinimized ? 'p-3' : 'px-5 pt-3 pb-3'}`}>
 
             {/* LCD Display Panel - Compact */}
-            <div className={`w-full bg-[#111827] rounded-lg p-1 border-2 border-gray-500 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] ${isMinimized ? 'mb-2' : 'mb-5'}`}>
+            <div className={`w-full bg-[#111827] rounded-lg p-1 border-2 border-gray-500 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] ${isMinimized ? 'mb-2' : 'mb-2'}`}>
                  <div className="bg-[#1f2937] rounded border border-gray-700 p-2 flex flex-col items-center relative overflow-hidden">
                     {/* Glass Glare */}
                     <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
@@ -768,57 +782,57 @@ const App = () => {
                  </div>
             </div>
 
-            {/* Controls Area - 固定在底部 */}
-            <div className={`flex flex-col items-center gap-4 w-full ${!isNotesOpen && !isMinimized ? 'mt-auto' : ''}`}>
+            {/* Controls Area - 紧凑排列，确保高度一致 */}
+            <div className="flex flex-col items-center gap-2.5 w-full">
                 
                 {/* IDLE STATE: Config & Start */}
                 {!isMinimized && recordingState === RecordingState.IDLE && (
-                    <div className="w-full flex flex-col items-center gap-5">
+                    <div className="w-full flex flex-col items-center gap-3">
                         {/* If audioBlob exists (Recording finished), show Download/Reset */}
                         {audioBlob ? (
-                            <div className="flex flex-col items-center w-full gap-3 animate-in fade-in duration-300">
+                            <div className="flex flex-col items-center w-full gap-2 animate-in fade-in duration-300">
                                 <div className="text-gray-600 font-mono text-xs uppercase tracking-widest mb-1">Recording Finished</div>
-                                <div className="flex gap-3 w-full">
+                                <div className="flex gap-2 w-full">
                                     <RetroButton 
                                         onClick={handleSaveRecording}
-                                        className="flex-1 py-3 gap-2"
+                                        className="flex-1 py-2.5 gap-2"
                                         variant="normal"
                                     >
-                                        <Download size={16} />
+                                        <Download size={14} />
                                         <span className="font-bold text-xs">SAVE</span>
                                     </RetroButton>
                                     
                                     <RetroButton 
                                         onClick={handleDiscard}
-                                        className="w-12 py-3 gap-2"
+                                        className="w-11 py-2.5 gap-2"
                                         variant="normal"
                                     >
-                                       <Trash2 size={16} />
+                                       <Trash2 size={14} />
                                     </RetroButton>
                                     
                                     {/* Toggle Notes Button - 只有在有笔记时才可点击 */}
                                     <RetroButton 
                                         onClick={toggleNotes}
                                         disabled={!hasNotes}
-                                        className="w-12 py-3 gap-2"
+                                        className="w-11 py-2.5 gap-2"
                                         variant="normal"
                                         title={hasNotes ? "Toggle Notes" : "No notes available"}
                                     >
-                                        <FileText size={16} />
+                                        <FileText size={14} />
                                     </RetroButton>
                                 </div>
                             </div>
                         ) : (
                             <>
-                                {/* Config Switches - Compact Row */}
-                                <div className="flex gap-6 px-6 py-3 rounded-xl bg-[#d1d5db] border border-white/50 shadow-inner">
+                                {/* Config Switches - 水平布局，紧凑排列 */}
+                                <div className="flex gap-4 px-4 py-2.5 rounded-lg bg-[#d1d5db] border border-white/50 shadow-inner w-full justify-center">
                                     <RetroToggle 
                                         label="MIC" 
                                         icon={Mic}
                                         checked={configMic} 
                                         onChange={setConfigMic} 
                                     />
-                                    <div className="w-[1px] bg-gray-400 h-10 self-center"></div>
+                                    <div className="w-[1px] bg-gray-400 h-6 self-center"></div>
                                     <RetroToggle 
                                         label="SYS" 
                                         icon={Monitor}
@@ -831,7 +845,7 @@ const App = () => {
                                 <RetroButton 
                                     onClick={handleStart} 
                                     disabled={!configMic && !configSys}
-                                    className="w-full py-3 gap-2" 
+                                    className="w-full py-2.5 gap-2" 
                                     variant="record"
                                 >
                                     <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
@@ -844,21 +858,21 @@ const App = () => {
 
                 {/* RECORDING STATE: Transport Controls */}
                 {recordingState !== RecordingState.IDLE && (
-                    <div className="flex items-center justify-between w-full px-4">
+                    <div className="flex items-center justify-between w-full px-2">
                          {/* Play/Pause/Stop Container */}
-                         <div className="flex items-center gap-4 bg-[#e5e5e5] p-2 rounded-full border border-white shadow-inner">
+                         <div className="flex items-center gap-3 bg-[#e5e5e5] p-1.5 rounded-full border border-white shadow-inner">
                             {recordingState === RecordingState.RECORDING ? (
                                 <RetroButton variant="round" onClick={pauseRecording} className="text-yellow-600">
-                                    <Pause size={20} fill="currentColor" />
+                                    <Pause size={18} fill="currentColor" />
                                 </RetroButton>
                             ) : (
                                 <RetroButton variant="round" onClick={resumeRecording} className="text-green-600">
-                                    <Play size={20} fill="currentColor" />
+                                    <Play size={18} fill="currentColor" />
                                 </RetroButton>
                             )}
                             
                             <RetroButton variant="round" onClick={stopRecording} className="text-red-600 active:translate-y-1">
-                                <StopCircle size={20} fill="currentColor" />
+                                <StopCircle size={18} fill="currentColor" />
                             </RetroButton>
                          </div>
 
@@ -866,22 +880,22 @@ const App = () => {
                             {/* Screenshot Button */}
                             <RetroButton 
                                 onClick={handleCaptureScreen}
-                                className="w-12 py-3 gap-2"
+                                className="w-11 py-2.5 gap-2"
                                 variant="normal"
                                 title="Capture Screen"
                             >
-                                <Camera size={16} />
+                                <Camera size={14} />
                             </RetroButton>
                             
                             {/* Toggle Notes Button (Only visible if not minimized) */}
                             {!isMinimized && (
                                 <RetroButton 
                                     onClick={toggleNotes}
-                                    className={`w-12 py-3 gap-2 ${isNotesOpen ? 'bg-blue-100 border-blue-300' : ''}`}
+                                    className={`w-11 py-2.5 gap-2 ${isNotesOpen ? 'bg-blue-100 border-blue-300' : ''}`}
                                     variant="normal"
                                     title="Toggle Notes"
                                 >
-                                    <FileText size={16} />
+                                    <FileText size={14} />
                                 </RetroButton>
                             )}
                          </div>

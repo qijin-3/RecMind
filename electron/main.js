@@ -8,7 +8,7 @@ const DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:3000
 const WINDOW_WIDTH = 420;
 const WINDOW_HEIGHT = 420;
 const WINDOW_MIN_WIDTH = 420;
-const WINDOW_MIN_HEIGHT = 420;
+const WINDOW_MIN_HEIGHT = 320;
 const APP_NAME = 'RecMind';
 
 app.setName(APP_NAME);
