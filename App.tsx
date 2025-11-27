@@ -1,13 +1,16 @@
-import React, { useState, useRef, useEffect, useMemo, Suspense } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import MacWindow from './components/MacWindow';
 import { useAudioRecorder } from './hooks/useAudioRecorder';
 import { Note, RecordingState } from './types';
-import { Mic, StopCircle, Play, Pause, Image as ImageIcon, Download, Plus, Pencil, Check, X, Monitor, ChevronDown, ChevronUp, Paperclip, Trash2, Minimize2, Maximize2, Camera, FileText } from 'lucide-react';
 import { exportNotesToPDF } from './services/pdfService';
 import type JSZipType from 'jszip';
-
-const Visualizer = React.lazy(() => import('./components/Visualizer'));
+import { X, Camera } from 'lucide-react';
+import LanguageSwitcher from './components/LanguageSwitcher';
+import RecorderPanel from './components/RecorderPanel';
+import NotesPanel from './components/NotesPanel';
+import MiniFloatingPanel from './components/MiniFloatingPanel';
+import PdfTemplate from './components/PdfTemplate';
 
 const WINDOW_LAYOUTS = {
   minimized: { width: 340, height: 320, minWidth: 320, minHeight: 300 },
@@ -65,8 +68,6 @@ const App = () => {
   const [isNotesOpen, setIsNotesOpen] = useState(false);
 
   // Language Switcher Dropdown State
-  const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
-  const languageMenuRef = useRef<HTMLDivElement>(null);
 
   // Window Size State
   const [windowSize, setWindowSize] = useState<{width: number, height: number}>({ width: WINDOW_LAYOUTS.default.width, height: WINDOW_LAYOUTS.default.height });
@@ -833,76 +834,13 @@ const App = () => {
    */
   const handleLanguageChange = (lang: 'zh' | 'en') => {
     i18n.changeLanguage(lang);
-    setIsLanguageMenuOpen(false);
   };
 
-  /**
-   * 点击外部区域关闭语言菜单
-   */
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (languageMenuRef.current && !languageMenuRef.current.contains(event.target as Node)) {
-        setIsLanguageMenuOpen(false);
-      }
-    };
-
-    if (isLanguageMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isLanguageMenuOpen]);
-
-  /**
-   * 获取当前语言的显示文本
-   */
-  const getCurrentLanguageText = () => {
-    return i18n.language === 'zh' ? '中' : 'EN';
-  };
-
-  // Language Switcher Component for Header
   const languageSwitcher = (
-    <div className="relative z-[100]" ref={languageMenuRef}>
-      <button
-        onClick={() => setIsLanguageMenuOpen(!isLanguageMenuOpen)}
-        className={`px-2 py-1 text-[10px] rounded transition-colors font-mono flex items-center gap-1 ${
-          isLanguageMenuOpen
-            ? 'bg-blue-500 text-white shadow-sm'
-            : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-        }`}
-        title={i18n.language === 'zh' ? '中文' : 'English'}
-      >
-        <span>{getCurrentLanguageText()}</span>
-        <ChevronDown 
-          size={10} 
-          className={`transition-transform ${isLanguageMenuOpen ? 'rotate-180' : ''}`} 
-        />
-      </button>
-      
-      {/* Dropdown Menu */}
-      {isLanguageMenuOpen && (
-        <div className="absolute top-full right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-[100] min-w-[60px] overflow-visible">
-          <button
-            onClick={() => handleLanguageChange('zh')}
-            className={`w-full px-2 py-1.5 text-[10px] font-mono text-left hover:bg-gray-100 transition-colors first:rounded-t-md last:rounded-b-md ${
-              i18n.language === 'zh' ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-gray-700'
-            }`}
-          >
-            中文
-          </button>
-          <button
-            onClick={() => handleLanguageChange('en')}
-            className={`w-full px-2 py-1.5 text-[10px] font-mono text-left hover:bg-gray-100 transition-colors first:rounded-t-md last:rounded-b-md ${
-              i18n.language === 'en' ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-gray-700'
-            }`}
-          >
-            English
-          </button>
-        </div>
-      )}
-    </div>
+    <LanguageSwitcher
+      currentLanguage={i18n.language === 'zh' ? 'zh' : 'en'}
+      onChange={handleLanguageChange}
+    />
   );
 
   const macWindowElement = (
@@ -920,351 +858,62 @@ const App = () => {
       contentAutoHeight={false}
       headerRightContent={languageSwitcher}
     >
-    {/* Main Interface Wrapper (Vertical Layout) */}
-    <div className={`bg-[#d4d4d8] flex flex-col relative overflow-hidden h-full`}>
-        
-        {/* --- TOP PANEL: RECORDER INTERFACE --- */}
-        {/* 笔记模式下使用 flex-none，非笔记模式下使用 flex-1 撑满窗口 */}
-        <div className={`flex flex-col items-center w-full transition-all duration-300 z-20 shadow-md bg-[#d4d4d8] ${isNotesOpen ? 'flex-none shrink-0' : 'flex-1 min-h-0'} ${isMinimized ? 'p-3' : 'px-5 pt-3 pb-3'}`}>
+      <div className="bg-[#d4d4d8] flex flex-col relative overflow-hidden h-full">
+        <RecorderPanel
+          t={t}
+          recordingState={recordingState}
+          duration={duration}
+          analyser={analyser}
+          isNotesOpen={isNotesOpen}
+          isMinimized={isMinimized}
+          hasNotes={hasNotes}
+          audioBlob={audioBlob}
+          configMic={configMic}
+          configSys={configSys}
+          onToggleMic={setConfigMic}
+          onToggleSys={setConfigSys}
+          onStart={handleStart}
+          onSaveRecording={handleSaveRecording}
+          onDiscard={handleDiscard}
+          onToggleNotes={toggleNotes}
+          onPause={pauseRecording}
+          onResume={resumeRecording}
+          onStop={stopRecording}
+          onCaptureScreen={handleCaptureScreen}
+          formatTime={formatTime}
+        />
 
-            {/* LCD Display Panel - Compact */}
-            <div className={`w-full bg-[#111827] rounded-lg p-1 border-2 border-gray-500 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] ${isMinimized ? 'mb-2' : 'mb-2'}`}>
-                 <div className="bg-[#1f2937] rounded border border-gray-700 p-2 flex flex-col items-center relative overflow-hidden">
-                    {/* Glass Glare */}
-                    <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
-                    
-                    <div className="flex justify-between w-full mb-1">
-                        <span className="text-[9px] text-gray-500 font-mono tracking-widest uppercase">{t('common.timer')}</span>
-                        <div className="flex gap-1 items-center">
-                            <div className={`w-1.5 h-1.5 rounded-full ${recordingState === RecordingState.RECORDING ? 'bg-red-500 shadow-[0_0_5px_red]' : 'bg-red-900'}`} />
-                            <span className="text-[9px] text-gray-500 font-mono tracking-widest uppercase">{t('common.rec')}</span>
-                        </div>
-                    </div>
-
-                    {/* Digital Numbers - Compact Font */}
-                    <div className={`font-['Share_Tech_Mono'] text-3xl tracking-widest z-10 my-1 ${recordingState !== RecordingState.IDLE ? 'text-[#4ade80] drop-shadow-[0_0_3px_rgba(74,222,128,0.6)]' : 'text-[#374151]'}`}>
-                        {formatTime(duration)}
-                    </div>
-
-                    {/* Visualizer Container - Shorter */}
-                    <div className="w-full h-10 mt-2 border border-gray-700 bg-black relative">
-                        <div className="absolute inset-0 z-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 pointer-events-none"></div>
-                        <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-[10px] text-gray-500">...</div>}>
-                          <Visualizer analyser={analyser} isActive={recordingState === RecordingState.RECORDING} />
-                        </Suspense>
-                    </div>
-                 </div>
-            </div>
-
-            {/* Controls Area - 非笔记模式下撑满剩余空间，笔记模式下紧凑排列 */}
-            <div className={`flex flex-col items-center gap-2.5 w-full ${isNotesOpen ? '' : 'flex-1 justify-center min-h-0'}`}>
-                
-                {/* IDLE STATE: Config & Start */}
-                {!isMinimized && recordingState === RecordingState.IDLE && (
-                    <div className="w-full flex flex-col items-center gap-3 transition-opacity duration-300">
-                        {/* If audioBlob exists (Recording finished), show Download/Reset */}
-                        {audioBlob ? (
-                            <div className="flex flex-col items-center w-full gap-2 animate-in fade-in duration-300">
-                                <div className="text-gray-600 font-mono text-xs uppercase tracking-widest mb-1">{t('common.recordingFinished')}</div>
-                                <div className="flex gap-2 w-full">
-                                    <RetroButton 
-                                        onClick={handleSaveRecording}
-                                        className="flex-1 py-2.5 gap-2"
-                                        variant="normal"
-                                    >
-                                        <Download size={14} />
-                                        <span className="font-bold text-xs">{t('common.save')}</span>
-                                    </RetroButton>
-                                    
-                                    <RetroButton 
-                                        onClick={handleDiscard}
-                                        className="w-11 py-2.5 gap-2"
-                                        variant="normal"
-                                    >
-                                       <Trash2 size={14} />
-                                    </RetroButton>
-                                    
-                                    {/* Toggle Notes Button - 只有在有笔记时才可点击 */}
-                                    <RetroButton 
-                                        onClick={toggleNotes}
-                                        disabled={!hasNotes}
-                                        className="w-11 py-2.5 gap-2"
-                                        variant="normal"
-                                        title={hasNotes ? t('common.toggleNotes') : t('common.noNotesAvailable')}
-                                    >
-                                        <FileText size={14} />
-                                    </RetroButton>
-                                </div>
-                            </div>
-                        ) : (
-                            <>
-                                {/* Config Switches - 水平布局，紧凑排列 */}
-                                <div className="flex gap-4 px-4 py-2.5 rounded-lg bg-[#d1d5db] border border-white/50 shadow-inner w-full justify-center">
-                                    <RetroToggle 
-                                        label={t('common.mic')} 
-                                        icon={Mic}
-                                        checked={configMic} 
-                                        onChange={setConfigMic} 
-                                    />
-                                    <div className="w-[1px] bg-gray-400 h-6 self-center"></div>
-                                    <RetroToggle 
-                                        label={t('common.sys')} 
-                                        icon={Monitor}
-                                        checked={configSys} 
-                                        onChange={setConfigSys} 
-                                    />
-                                </div>
-
-                                {/* Start Button */}
-                                <RetroButton 
-                                    onClick={handleStart} 
-                                    disabled={!configMic && !configSys}
-                                    className="w-full py-2.5 gap-2" 
-                                    variant="record"
-                                >
-                                    <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                                    <span className="font-mono text-sm font-bold tracking-widest uppercase">{t('common.rec')}</span>
-                                </RetroButton>
-                            </>
-                        )}
-                    </div>
-                )}
-
-                {/* RECORDING STATE: Transport Controls */}
-                {recordingState !== RecordingState.IDLE && (
-                    <div className="flex items-center justify-between w-full px-2 transition-opacity duration-300 animate-in fade-in">
-                         {/* Play/Pause/Stop Container */}
-                         <div className="flex items-center gap-3 bg-[#e5e5e5] p-1.5 rounded-full border border-white shadow-inner">
-                            {recordingState === RecordingState.RECORDING ? (
-                                <RetroButton variant="round" onClick={pauseRecording} className="text-yellow-600">
-                                    <Pause size={18} fill="currentColor" />
-                                </RetroButton>
-                            ) : (
-                                <RetroButton variant="round" onClick={resumeRecording} className="text-green-600">
-                                    <Play size={18} fill="currentColor" />
-                                </RetroButton>
-                            )}
-                            
-                            <RetroButton variant="round" onClick={stopRecording} className="text-red-600 active:translate-y-1">
-                                <StopCircle size={18} fill="currentColor" />
-                            </RetroButton>
-                         </div>
-
-                         <div className="flex items-center gap-2">
-                            {/* Screenshot Button */}
-                            <RetroButton 
-                                onClick={handleCaptureScreen}
-                                className="w-11 py-2.5 gap-2"
-                                variant="normal"
-                                title={t('common.captureScreen')}
-                            >
-                                <Camera size={14} />
-                            </RetroButton>
-                            
-                            {/* Toggle Notes Button (Only visible if not minimized) */}
-                            {!isMinimized && (
-                                <RetroButton 
-                                    onClick={toggleNotes}
-                                    className={`w-11 py-2.5 gap-2 ${isNotesOpen ? 'bg-blue-100 border-blue-300' : ''}`}
-                                    variant="normal"
-                                    title={t('common.toggleNotes')}
-                                >
-                                    <FileText size={14} />
-                                </RetroButton>
-                            )}
-                         </div>
-                    </div>
-                )}
-            </div>
-        </div>
-
-        {/* --- BOTTOM PANEL: NOTES (LEGAL PAD) --- */}
-        {/* Rendered if Open, slides down conceptually */}
         {isNotesOpen && !isMinimized && (
-            <div className="flex-1 w-full relative flex flex-col shadow-[inset_0_10px_20px_rgba(0,0,0,0.1)] z-10 animate-in fade-in slide-in-from-top-4 duration-300 min-h-0 overflow-hidden">
-                
-                {/* Paper Header / Tear Strip */}
-                <div className="h-8 bg-[#fef3c7] border-b border-[#e5e7eb] flex items-center justify-between px-4 shrink-0 shadow-sm relative z-10 border-t border-gray-300">
-                     {/* Perforation holes visual */}
-                     <div className="absolute top-[-6px] left-0 right-0 h-1.5 flex justify-between overflow-hidden px-1">
-                        {Array.from({length: 20}).map((_, i) => (
-                            <div key={i} className="w-2 h-2 rounded-full bg-[#1f2937] opacity-20"></div>
-                        ))}
-                     </div>
-
-                    <div className="text-red-400 font-serif italic font-bold text-xs">{t('common.notes')}</div>
-                    {notes.length > 0 && (
-                        <button 
-                        onClick={handleExport}
-                        className="text-[10px] font-serif italic flex items-center gap-1 px-2 py-0.5 text-gray-600 hover:text-gray-900 transition-colors bg-white/50 rounded"
-                        >
-                            <Download size={10} />
-                            {t('common.pdf')}
-                        </button>
-                    )}
-                </div>
-
-                {/* Paper Body */}
-                <div className="flex-1 bg-[#fefce8] relative flex flex-col min-h-0 overflow-hidden">
-                    {/* Paper Pattern CSS */}
-                    <div className="absolute inset-0 paper-lines pointer-events-none opacity-80" />
-                    <div className="absolute left-8 top-0 bottom-0 w-[2px] bg-red-200/50 pointer-events-none" />
-
-                    {/* Scroll Container */}
-                    <div className="flex-1 overflow-y-auto p-0 relative min-h-0">
-                        <div className="min-h-full pb-16">
-                            {notes.length === 0 && (
-                                <div className="pt-10 text-center font-serif italic text-gray-400 pl-8 pr-4 text-sm">
-                                    {t('common.startTakingNotes')}
-                                </div>
-                            )}
-                            {notes.map((note) => (
-                                <div key={note.id} className="relative group pl-10 pr-4 py-1 min-h-[2rem] hover:bg-yellow-100/30 transition-colors">
-                                    {/* Timestamp (Left Margin) */}
-                                    <div className="absolute left-1 top-2 font-mono text-[8px] text-gray-400">
-                                        {formatTime(note.timestamp / 1000)}
-                                    </div>
-                                    
-                                    {note.imageUrl ? (
-                                        <div className="my-2 p-1 bg-white shadow-sm border border-gray-200 inline-block transform -rotate-1 relative group">
-                                            <img 
-                                                src={note.imageUrl} 
-                                                alt="Attachment" 
-                                                className="max-h-32 cursor-pointer hover:opacity-90 transition-opacity" 
-                                                onClick={() => setViewingImageUrl(note.imageUrl || null)}
-                                            />
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleDeleteNote(note.id);
-                                                }}
-                                                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-opacity shadow-md z-10"
-                                                title={t('common.delete')}
-                                            >
-                                                <Trash2 size={12} />
-                                            </button>
-                                        </div>
-                                    ) : null}
-                                    
-                                    {/* 仅当有文字内容时才显示文字区域 */}
-                                    {note.text.trim() && (
-                                      editingNoteId === note.id ? (
-                                        <div className="relative z-20 mt-1">
-                                            <textarea
-                                                value={editText}
-                                                onChange={(e) => setEditText(e.target.value)}
-                                                className="w-full bg-white/80 p-1 font-serif text-base leading-8 border border-blue-300 outline-none shadow-sm rounded-sm"
-                                                rows={3}
-                                                autoFocus
-                                            />
-                                            <div className="flex justify-end gap-2 mt-2">
-                                                <button onClick={handleCancelEdit} className="p-1 hover:bg-gray-200 rounded"><X size={14} /></button>
-                                                <button onClick={() => handleSaveEdit(note.id)} className="p-1 text-green-600 hover:bg-green-100 rounded"><Check size={14} /></button>
-                                            </div>
-                                        </div>
-                                      ) : (
-                                        <div className="relative group">
-                                            <p className="font-serif text-base text-gray-800 leading-[2rem] break-words whitespace-pre-wrap">
-                                                {note.text}
-                                            </p>
-                                            <div className="absolute -right-2 top-1 opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity z-10">
-                                                <button
-                                                    onClick={() => handleStartEdit(note)}
-                                                    className="text-gray-400 hover:text-blue-600 p-1 bg-white/90 rounded shadow-sm"
-                                                    title={t('common.edit')}
-                                                >
-                                                    <Pencil size={12} />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDeleteNote(note.id)}
-                                                    className="text-gray-400 hover:text-red-600 p-1 bg-white/90 rounded shadow-sm"
-                                                    title={t('common.delete')}
-                                                >
-                                                    <Trash2 size={12} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                      )
-                                    )}
-                                </div>
-                            ))}
-                            <div ref={notesEndRef} />
-                        </div>
-                    </div>
-
-                    {/* Input Footer */}
-                    {/* 允许在录音中或录音完成后编辑笔记 */}
-                    <div className={`p-3 border-t-2 border-[#e5e7eb] bg-[#fefce8] relative z-20 ${!isRecordingActive && !hasNotes && !audioBlob ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
-                        <form onSubmit={handleAddNote} className="flex items-end gap-2">
-                            <button 
-                                type="button" 
-                                onClick={() => (isRecordingActive || audioBlob) && fileInputRef.current?.click()}
-                                className="p-1.5 text-gray-500 hover:text-gray-800 transition-colors"
-                                disabled={!isRecordingActive && !audioBlob}
-                            >
-                                <ImageIcon size={18} />
-                            </button>
-                            <input 
-                                type="file" 
-                                ref={fileInputRef} 
-                                onChange={handleImageUpload} 
-                                accept="image/*" 
-                                className="hidden" 
-                            />
-                            
-                            <div className="flex-1 relative">
-                                <input
-                                    type="text"
-                                    value={currentNote}
-                                    onChange={(e) => setCurrentNote(e.target.value)}
-                                    placeholder={t('common.placeholder')}
-                                    className="w-full bg-transparent border-b border-gray-300 font-serif text-base focus:border-blue-400 focus:outline-none placeholder:italic placeholder:text-gray-300 py-1"
-                                />
-                            </div>
-                            
-                            <button 
-                                type="submit"
-                                disabled={!currentNote.trim()}
-                                className="p-1.5 text-gray-400 hover:text-blue-600 disabled:opacity-0 transition-all"
-                            >
-                                <Plus size={20} strokeWidth={1.5} />
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            </div>
+          <NotesPanel
+            t={t}
+            notes={notes}
+            editingNoteId={editingNoteId}
+            editText={editText}
+            currentNote={currentNote}
+            isRecordingActive={isRecordingActive}
+            audioBlob={audioBlob}
+            onExport={handleExport}
+            onStartEdit={handleStartEdit}
+            onCancelEdit={handleCancelEdit}
+            onSaveEdit={handleSaveEdit}
+            onDeleteNote={handleDeleteNote}
+            onImageClick={setViewingImageUrl}
+            onAddNote={handleAddNote}
+            onEditTextChange={setEditText}
+            onCurrentNoteChange={setCurrentNote}
+            onImageUpload={handleImageUpload}
+            fileInputRef={fileInputRef}
+            notesEndRef={notesEndRef}
+            formatTime={formatTime}
+          />
         )}
-    </div>
+      </div>
     </MacWindow>
   );
 
   return (
     <>
-      {/* Hidden Print Template */}
-      <div id="pdf-export-content" className="fixed top-0 left-[-9999px] w-[595px] bg-white p-10 font-serif text-gray-900 pointer-events-none">
-        <h1 className="text-3xl font-bold mb-4 text-gray-800 border-b-2 border-gray-800 pb-2">{t('common.meetingMinutes')}</h1>
-        <p className="text-sm font-mono text-gray-500 mb-8">{t('common.date')}: {new Date().toLocaleDateString()}</p>
-        
-        <div className="space-y-6">
-            {notes.map(note => (
-                <div key={note.id} className="flex gap-4">
-                     <div className="w-16 pt-1 font-mono text-xs font-bold text-gray-500 shrink-0">
-                        {formatTime(note.timestamp / 1000)}
-                     </div>
-                     <div className="flex-1">
-                        <p className="text-base leading-relaxed whitespace-pre-wrap mb-2 font-serif">{note.text}</p>
-                        {note.imageUrl && (
-                            <img 
-                              src={note.imageUrl} 
-                              className="w-full max-w-full border border-gray-800 rounded-sm shadow-sm"
-                              style={{ objectFit: 'contain' }}
-                            />
-                        )}
-                     </div>
-                </div>
-            ))}
-        </div>
-      </div>
+      <PdfTemplate t={t} notes={notes} formatTime={formatTime} />
 
       {!isMiniFloatingMode && (
         isDesktopApp ? macWindowElement : (
@@ -1275,73 +924,19 @@ const App = () => {
       )}
 
       {isMiniFloatingMode && (
-        <div className="fixed top-6 right-6 w-[260px] bg-[#0b1220] border border-[#1f2937] rounded-xl p-3 z-50 text-white font-['Share_Tech_Mono'] drag-region cursor-move">
-          <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.3em] text-[#9ca3af] mb-2">
-            <span>{t('common.timer')}</span>
-            <div className="flex items-center gap-1.5">
-              <div className={`w-2 h-2 rounded-full ${recordingState === RecordingState.RECORDING ? 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.9)] animate-pulse' : 'bg-red-900'}`} />
-              <span>{t('common.rec')}</span>
-              <button
-                onClick={() => setShowVisualizerInMini(!showVisualizerInMini)}
-                className="text-[#94a3b8] hover:text-white transition-colors no-drag p-0.5"
-                title={showVisualizerInMini ? t('common.hideVisualizer') : t('common.showVisualizer')}
-              >
-                <Monitor size={12} />
-              </button>
-              <button
-                onClick={disableMiniFloatingMode}
-                className="text-[#94a3b8] hover:text-white transition-colors no-drag"
-              >
-                <Maximize2 size={14} />
-              </button>
-            </div>
-          </div>
-
-          <div className="text-center text-3xl mb-2 text-[#4ade80] drop-shadow-[0_0_6px_rgba(74,222,128,0.7)]">
-            {formatTime(duration)}
-          </div>
-
-          {showVisualizerInMini && (
-            <div className="h-10 bg-[#020617] border border-[#1e293b] rounded-md overflow-hidden relative mb-2">
-              <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
-              <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-[10px] text-gray-500">...</div>}>
-                <Visualizer analyser={analyser} isActive={recordingState === RecordingState.RECORDING} />
-              </Suspense>
-            </div>
-          )}
-
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={recordingState === RecordingState.RECORDING ? pauseRecording : resumeRecording}
-              className="flex-1 bg-[#1e293b] hover:bg-[#0f172a] border border-[#334155] rounded-md py-1.5 flex items-center justify-center gap-1 text-xs transition-colors no-drag"
-            >
-              {recordingState === RecordingState.RECORDING ? (
-                <>
-                  <Pause size={14} />
-                  <span>{t('common.pause')}</span>
-                </>
-              ) : (
-                <>
-                  <Play size={14} />
-                  <span>{t('common.resume')}</span>
-                </>
-              )}
-            </button>
-            <button
-              onClick={handleCaptureScreen}
-              className="w-10 h-8 bg-[#1e293b] hover:bg-[#0f172a] border border-[#334155] rounded-md flex items-center justify-center transition-colors no-drag"
-              title={t('common.captureScreen')}
-            >
-              <Camera size={14} />
-            </button>
-            <button
-              onClick={stopRecording}
-              className="w-14 bg-[#ef4444] hover:bg-[#dc2626] border border-[#7f1d1d] rounded-md py-1.5 flex items-center justify-center text-xs font-semibold transition-colors no-drag"
-            >
-              {t('common.stop')}
-            </button>
-          </div>
-        </div>
+        <MiniFloatingPanel
+          t={t}
+          duration={duration}
+          recordingState={recordingState}
+          showVisualizer={showVisualizerInMini}
+          onToggleVisualizer={() => setShowVisualizerInMini(prev => !prev)}
+          onExitMiniMode={disableMiniFloatingMode}
+          onPause={pauseRecording}
+          onResume={resumeRecording}
+          onCaptureScreen={handleCaptureScreen}
+          onStop={stopRecording}
+          analyser={analyser}
+        />
       )}
 
       {/* Image Viewer Modal */}
