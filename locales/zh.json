@@ -36,7 +36,8 @@
     "enterMiniMode": "进入迷你模式",
     "discardRecording": "确定要丢弃此录音吗？此操作无法撤销。",
     "meetingMinutes": "会议记录",
-    "date": "日期"
+    "date": "日期",
+    "attachment": "附件"
   },
   "window": {
     "title": "RecMind",

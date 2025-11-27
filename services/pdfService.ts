@@ -2,6 +2,16 @@ import i18n from '../i18n';
 
 const ILLEGAL_FILENAME_CHARS = /[<>:"/\\|?*\x00-\x1F]/g;
 
+interface PdfExportAttachment {
+  id: string;
+  imageUrl: string;
+  timestampLabel?: string;
+}
+
+interface PdfExportOptions {
+  attachments?: PdfExportAttachment[];
+}
+
 let html2canvasModulePromise: Promise<typeof import('html2canvas')> | null = null;
 let jsPdfModulePromise: Promise<typeof import('jspdf')> | null = null;
 
@@ -28,9 +38,34 @@ const loadJsPDF = async () => {
 };
 
 /**
+ * 根据 data URL 推断图片格式，默认为 PNG。
+ */
+const getImageFormatFromDataUrl = (dataUrl: string): 'PNG' | 'JPEG' | 'WEBP' => {
+  if (dataUrl.startsWith('data:image/jpeg') || dataUrl.startsWith('data:image/jpg')) {
+    return 'JPEG';
+  }
+  if (dataUrl.startsWith('data:image/webp')) {
+    return 'WEBP';
+  }
+  return 'PNG';
+};
+
+/**
+ * 异步获取图片的原始尺寸，用于在 PDF 中按比例缩放。
+ */
+const getImageDimensions = (src: string): Promise<{ width: number; height: number }> => {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    image.onerror = reject;
+    image.src = src;
+  });
+};
+
+/**
  * 依据指定 DOM 元素生成 PDF Blob，并返回文件名以便由调用方自定义下载流程。
  */
-export const exportNotesToPDF = async (elementId: string, title?: string) => {
+export const exportNotesToPDF = async (elementId: string, title?: string, options?: PdfExportOptions) => {
   const defaultTitle = i18n.t('common.meetingMinutes');
   const finalTitle = title || defaultTitle;
   const element = document.getElementById(elementId);
@@ -40,13 +75,20 @@ export const exportNotesToPDF = async (elementId: string, title?: string) => {
 
   const html2canvas = await loadHtml2Canvas();
   const jsPDF = await loadJsPDF();
+  const deviceScale = Math.max(window.devicePixelRatio || 1, 2);
+  const targetWidth = element.scrollWidth || element.offsetWidth || 595;
+  const targetHeight = element.scrollHeight || element.offsetHeight || 842;
 
   // Generate canvas from the hidden HTML template with higher resolution to keep text sharp
   const canvas = await html2canvas(element, {
-    scale: 2,
+    scale: deviceScale,
     useCORS: true,
     logging: false,
-    backgroundColor: '#ffffff'
+    backgroundColor: '#ffffff',
+    width: targetWidth,
+    height: targetHeight,
+    windowWidth: targetWidth,
+    windowHeight: targetHeight,
   });
 
   const imgData = canvas.toDataURL('image/png');
@@ -71,6 +113,39 @@ export const exportNotesToPDF = async (elementId: string, title?: string) => {
     pdf.addPage();
     pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
     heightLeft -= pdfHeight;
+  }
+
+  if (options?.attachments?.length) {
+    const marginX = 12;
+    const marginY = 20;
+    const availableWidth = pdfWidth - marginX * 2;
+    const availableHeight = pdfHeight - marginY * 2;
+    for (const attachment of options.attachments) {
+      try {
+        const { width, height } = await getImageDimensions(attachment.imageUrl);
+        const scale = Math.min(availableWidth / width, availableHeight / height, 1);
+        const renderWidth = width * scale;
+        const renderHeight = height * scale;
+        pdf.addPage();
+        pdf.setFontSize(12);
+        const attachmentLabel = attachment.timestampLabel
+          ? `${i18n.t('common.attachment', { defaultValue: 'Attachment' })} • ${attachment.timestampLabel}`
+          : i18n.t('common.attachment', { defaultValue: 'Attachment' });
+        pdf.text(attachmentLabel, marginX, marginY - 6);
+        pdf.addImage(
+          attachment.imageUrl,
+          getImageFormatFromDataUrl(attachment.imageUrl),
+          marginX,
+          marginY,
+          renderWidth,
+          renderHeight,
+          attachment.id,
+          'FAST'
+        );
+      } catch (error) {
+        console.error('Failed to embed attachment image', error);
+      }
+    }
   }
 
   const sanitizedTitle = title

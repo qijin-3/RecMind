@@ -252,12 +252,23 @@ const App = () => {
   };
 
   /**
-   * 生成当前笔记的 PDF Blob 及文件名。
+   * 生成当前笔记的 PDF Blob 及文件名，并附带原图以保留分辨率。
    * @returns Promise<{blob: Blob, fileName: string}>
    */
   const buildNotesPdfPayload = async () => {
     const dateStr = new Date().toLocaleDateString();
-    return await exportNotesToPDF('pdf-export-content', `${t('common.meetingMinutes')} ${dateStr}`);
+    const attachments = notes
+      .filter((note): note is Note & { imageUrl: string } => Boolean(note.imageUrl))
+      .map(note => ({
+        id: note.id,
+        imageUrl: note.imageUrl,
+        timestampLabel: formatTime(note.timestamp / 1000),
+      }));
+    return await exportNotesToPDF(
+      'pdf-export-content',
+      `${t('common.meetingMinutes')} ${dateStr}`,
+      { attachments }
+    );
   };
 
   /**
@@ -1243,7 +1254,11 @@ const App = () => {
                      <div className="flex-1">
                         <p className="text-base leading-relaxed whitespace-pre-wrap mb-2 font-serif">{note.text}</p>
                         {note.imageUrl && (
-                            <img src={note.imageUrl} className="max-w-[200px] border border-gray-800" />
+                            <img 
+                              src={note.imageUrl} 
+                              className="w-full max-w-full border border-gray-800 rounded-sm shadow-sm"
+                              style={{ objectFit: 'contain' }}
+                            />
                         )}
                      </div>
                 </div>

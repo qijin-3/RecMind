@@ -36,7 +36,8 @@
     "enterMiniMode": "Enter Mini Mode",
     "discardRecording": "Are you sure you want to discard this recording? This cannot be undone.",
     "meetingMinutes": "MEETING MINUTES",
-    "date": "DATE"
+    "date": "DATE",
+    "attachment": "ATTACHMENT"
   },
   "window": {
     "title": "RecMind",
