@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import MacWindow from './components/MacWindow';
 import Visualizer from './components/Visualizer';
 import { useAudioRecorder } from './hooks/useAudioRecorder';
@@ -28,6 +29,7 @@ const RECORDING_STATE_HEIGHTS = {
 const INVALID_FILENAME_CHARS = /[<>:"/\\|?*\x00-\x1F]/g;
 
 const App = () => {
+  const { t, i18n } = useTranslation();
   const {
     recordingState,
     startRecording,
@@ -224,7 +226,7 @@ const App = () => {
    */
   const buildAudioFilePayload = () => {
     if (!audioBlob) {
-      throw new Error('No audio available for export');
+      throw new Error(t('errors.noAudioAvailable'));
     }
     const baseFileName = `recording-${new Date().toISOString().replace(/[:.]/g, '-')}`;
     const extension = getFileExtensionFromMimeType(audioMimeType);
@@ -237,7 +239,8 @@ const App = () => {
    * @returns Promise<{blob: Blob, fileName: string}>
    */
   const buildNotesPdfPayload = async () => {
-    return await exportNotesToPDF('pdf-export-content', `Meeting Notes ${new Date().toLocaleDateString()}`);
+    const dateStr = new Date().toLocaleDateString();
+    return await exportNotesToPDF('pdf-export-content', `${t('common.meetingMinutes')} ${dateStr}`);
   };
 
   /**
@@ -288,7 +291,7 @@ const App = () => {
   };
 
   const handleDiscard = () => {
-    if (confirm("Are you sure you want to discard this recording? This cannot be undone.")) {
+    if (confirm(t('common.discardRecording'))) {
       setNotes([]);
       // We need to reset the audio blob in the hook ideally, but since we can't access setAudioBlob directly
       // we can simulate a reset by restarting and immediately stopping, or better, we just hide the finished UI
@@ -375,7 +378,7 @@ const App = () => {
           }>;
           
           if (!sources || sources.length === 0) {
-            throw new Error('No screen sources available');
+            throw new Error(t('errors.noScreenSources'));
           }
           
           console.log('Available screen sources:', sources.map(s => ({
@@ -394,14 +397,14 @@ const App = () => {
           }
           
           if (!screenSource) {
-            throw new Error('No suitable screen source found');
+            throw new Error(t('errors.noSuitableScreenSource'));
           }
           
           console.log('Selected screen source:', screenSource.name, 'displayId:', screenSource.displayId, 'isCurrentDisplay:', screenSource.isCurrentDisplay);
           
           // 步骤3: 使用 getUserMedia 捕获整个屏幕流
           if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            throw new Error('getUserMedia API not available');
+            throw new Error(t('errors.getUserMediaNotAvailable'));
           }
           
           // 使用 mandatory 约束来指定 chromeMediaSource 和 chromeMediaSourceId
@@ -440,9 +443,9 @@ const App = () => {
                 });
               }).catch(reject);
             };
-            video.onerror = () => reject(new Error('Video load error'));
+            video.onerror = () => reject(new Error(t('errors.videoLoadError')));
             // 设置超时
-            setTimeout(() => reject(new Error('Video load timeout')), 8000);
+            setTimeout(() => reject(new Error(t('errors.videoLoadTimeout'))), 8000);
           });
           
           // 使用视频的实际尺寸，这是整个显示器的分辨率
@@ -453,7 +456,7 @@ const App = () => {
           console.log('Captured screen dimensions:', canvas.width, 'x', canvas.height);
           
           const ctx = canvas.getContext('2d');
-          if (!ctx) throw new Error('Failed to get canvas context');
+          if (!ctx) throw new Error(t('errors.canvasContextFailed'));
           
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
           imageDataUrl = canvas.toDataURL('image/png');
@@ -474,7 +477,7 @@ const App = () => {
       // Web 环境或 Electron 回退：使用 getDisplayMedia API（需要用户选择）
       if (!imageDataUrl) {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-          throw new Error('Screen capture API not available');
+          throw new Error(t('errors.screenCaptureNotAvailable'));
         }
         
         const stream = await navigator.mediaDevices.getDisplayMedia({
@@ -529,13 +532,13 @@ const App = () => {
 
       // 如果笔记面板是收起状态或处于迷你浮窗模式，显示截图成功提示
       if (!isNotesOpen || isMiniFloatingMode) {
-        setToastMessage('截图已保存');
+        setToastMessage(t('common.screenshotSaved'));
         setTimeout(() => setToastMessage(null), 2000);
       }
     } catch (error) {
       console.error('Screen capture failed:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      alert(`截图失败: ${errorMessage}。请稍后重试。`);
+      const errorMessage = error instanceof Error ? error.message : t('common.unknownError');
+      alert(`${t('common.screenshotFailed')}: ${errorMessage}。${t('common.retryLater')}`);
     }
   };
 
@@ -548,7 +551,7 @@ const App = () => {
       triggerBlobDownload(blob, fileName);
     } catch (error) {
       console.error('Failed to export PDF', error);
-      alert('PDF 导出失败，请稍后重试。');
+      alert(`${t('common.pdfExportFailed')}，${t('common.retryLater')}`);
     }
   };
 
@@ -562,12 +565,12 @@ const App = () => {
       const { blob, fileName } = buildAudioFilePayload();
       triggerBlobDownload(blob, fileName);
       const format = getFileExtensionFromMimeType(audioMimeType).toUpperCase();
-      setToastMessage(`音频已保存为 ${format} 格式`);
+      setToastMessage(t('common.audioSaved', { format }));
       setTimeout(() => setToastMessage(null), 2000);
     } catch (error) {
       console.error('Failed to export audio', error);
-      const errorMessage = error instanceof Error ? error.message : '未知错误';
-      alert(`音频保存失败: ${errorMessage}。请稍后重试。`);
+      const errorMessage = error instanceof Error ? error.message : t('common.unknownError');
+      alert(`${t('common.audioSaveFailed')}: ${errorMessage}。${t('common.retryLater')}`);
     }
   };
 
@@ -592,12 +595,12 @@ const App = () => {
       const zipBlob = await zip.generateAsync({ type: 'blob' });
       const zipFileName = buildSafeFileName(audioPayload.baseFileName, 'zip');
       triggerBlobDownload(zipBlob, zipFileName);
-      setToastMessage('文件已打包保存');
+      setToastMessage(t('common.fileSaved'));
       setTimeout(() => setToastMessage(null), 2000);
     } catch (error) {
       console.error('Failed to export bundled download', error);
-      const errorMessage = error instanceof Error ? error.message : '未知错误';
-      alert(`打包下载失败: ${errorMessage}。请稍后重试。`);
+      const errorMessage = error instanceof Error ? error.message : t('common.unknownError');
+      alert(`${t('common.bundleSaveFailed')}: ${errorMessage}。${t('common.retryLater')}`);
     }
   };
 
@@ -796,9 +799,37 @@ const App = () => {
     </div>
   );
 
+  // Language Switcher Component for Header
+  const languageSwitcher = (
+    <div className="flex items-center gap-1">
+      <button
+        onClick={() => i18n.changeLanguage('zh')}
+        className={`px-1.5 py-0.5 text-[10px] rounded transition-colors font-mono ${
+          i18n.language === 'zh' 
+            ? 'bg-blue-500 text-white shadow-sm' 
+            : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+        }`}
+        title="中文"
+      >
+        中
+      </button>
+      <button
+        onClick={() => i18n.changeLanguage('en')}
+        className={`px-1.5 py-0.5 text-[10px] rounded transition-colors font-mono ${
+          i18n.language === 'en' 
+            ? 'bg-blue-500 text-white shadow-sm' 
+            : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+        }`}
+        title="English"
+      >
+        EN
+      </button>
+    </div>
+  );
+
   const macWindowElement = (
     <MacWindow 
-      title={isMinimized ? (recordingState === RecordingState.RECORDING ? 'REC-ON' : 'MINI') : "RecMind"} 
+      title={isMinimized ? (recordingState === RecordingState.RECORDING ? t('window.recOn') : t('window.mini')) : t('window.title')} 
       width={isDesktopApp ? '100%' : windowSize.width}
       height={isDesktopApp ? '100%' : windowSize.height}
       onClose={handleWindowClose}
@@ -809,6 +840,7 @@ const App = () => {
       isMinimized={isMinimized}
       className={isDesktopApp ? 'w-full h-full' : ''}
       contentAutoHeight={false}
+      headerRightContent={languageSwitcher}
     >
     {/* Main Interface Wrapper (Vertical Layout) */}
     <div className={`bg-[#d4d4d8] flex flex-col relative overflow-hidden h-full`}>
@@ -824,10 +856,10 @@ const App = () => {
                     <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
                     
                     <div className="flex justify-between w-full mb-1">
-                        <span className="text-[9px] text-gray-500 font-mono tracking-widest uppercase">Timer</span>
+                        <span className="text-[9px] text-gray-500 font-mono tracking-widest uppercase">{t('common.timer')}</span>
                         <div className="flex gap-1 items-center">
                             <div className={`w-1.5 h-1.5 rounded-full ${recordingState === RecordingState.RECORDING ? 'bg-red-500 shadow-[0_0_5px_red]' : 'bg-red-900'}`} />
-                            <span className="text-[9px] text-gray-500 font-mono tracking-widest uppercase">REC</span>
+                            <span className="text-[9px] text-gray-500 font-mono tracking-widest uppercase">{t('common.rec')}</span>
                         </div>
                     </div>
 
@@ -853,7 +885,7 @@ const App = () => {
                         {/* If audioBlob exists (Recording finished), show Download/Reset */}
                         {audioBlob ? (
                             <div className="flex flex-col items-center w-full gap-2 animate-in fade-in duration-300">
-                                <div className="text-gray-600 font-mono text-xs uppercase tracking-widest mb-1">Recording Finished</div>
+                                <div className="text-gray-600 font-mono text-xs uppercase tracking-widest mb-1">{t('common.recordingFinished')}</div>
                                 <div className="flex gap-2 w-full">
                                     <RetroButton 
                                         onClick={handleSaveRecording}
@@ -861,7 +893,7 @@ const App = () => {
                                         variant="normal"
                                     >
                                         <Download size={14} />
-                                        <span className="font-bold text-xs">SAVE</span>
+                                        <span className="font-bold text-xs">{t('common.save')}</span>
                                     </RetroButton>
                                     
                                     <RetroButton 
@@ -878,7 +910,7 @@ const App = () => {
                                         disabled={!hasNotes}
                                         className="w-11 py-2.5 gap-2"
                                         variant="normal"
-                                        title={hasNotes ? "Toggle Notes" : "No notes available"}
+                                        title={hasNotes ? t('common.toggleNotes') : t('common.noNotesAvailable')}
                                     >
                                         <FileText size={14} />
                                     </RetroButton>
@@ -889,14 +921,14 @@ const App = () => {
                                 {/* Config Switches - 水平布局，紧凑排列 */}
                                 <div className="flex gap-4 px-4 py-2.5 rounded-lg bg-[#d1d5db] border border-white/50 shadow-inner w-full justify-center">
                                     <RetroToggle 
-                                        label="MIC" 
+                                        label={t('common.mic')} 
                                         icon={Mic}
                                         checked={configMic} 
                                         onChange={setConfigMic} 
                                     />
                                     <div className="w-[1px] bg-gray-400 h-6 self-center"></div>
                                     <RetroToggle 
-                                        label="SYS" 
+                                        label={t('common.sys')} 
                                         icon={Monitor}
                                         checked={configSys} 
                                         onChange={setConfigSys} 
@@ -911,7 +943,7 @@ const App = () => {
                                     variant="record"
                                 >
                                     <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                                    <span className="font-mono text-sm font-bold tracking-widest uppercase">REC</span>
+                                    <span className="font-mono text-sm font-bold tracking-widest uppercase">{t('common.rec')}</span>
                                 </RetroButton>
                             </>
                         )}
@@ -944,7 +976,7 @@ const App = () => {
                                 onClick={handleCaptureScreen}
                                 className="w-11 py-2.5 gap-2"
                                 variant="normal"
-                                title="Capture Screen"
+                                title={t('common.captureScreen')}
                             >
                                 <Camera size={14} />
                             </RetroButton>
@@ -955,7 +987,7 @@ const App = () => {
                                     onClick={toggleNotes}
                                     className={`w-11 py-2.5 gap-2 ${isNotesOpen ? 'bg-blue-100 border-blue-300' : ''}`}
                                     variant="normal"
-                                    title="Toggle Notes"
+                                    title={t('common.toggleNotes')}
                                 >
                                     <FileText size={14} />
                                 </RetroButton>
@@ -980,14 +1012,14 @@ const App = () => {
                         ))}
                      </div>
 
-                    <div className="text-red-400 font-serif italic font-bold text-xs">Notes</div>
+                    <div className="text-red-400 font-serif italic font-bold text-xs">{t('common.notes')}</div>
                     {notes.length > 0 && (
                         <button 
                         onClick={handleExport}
                         className="text-[10px] font-serif italic flex items-center gap-1 px-2 py-0.5 text-gray-600 hover:text-gray-900 transition-colors bg-white/50 rounded"
                         >
                             <Download size={10} />
-                            PDF
+                            {t('common.pdf')}
                         </button>
                     )}
                 </div>
@@ -1003,7 +1035,7 @@ const App = () => {
                         <div className="min-h-full pb-16">
                             {notes.length === 0 && (
                                 <div className="pt-10 text-center font-serif italic text-gray-400 pl-8 pr-4 text-sm">
-                                    Tap the + below to start taking notes...
+                                    {t('common.startTakingNotes')}
                                 </div>
                             )}
                             {notes.map((note) => (
@@ -1027,7 +1059,7 @@ const App = () => {
                                                     handleDeleteNote(note.id);
                                                 }}
                                                 className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-opacity shadow-md z-10"
-                                                title="删除截图"
+                                                title={t('common.delete')}
                                             >
                                                 <Trash2 size={12} />
                                             </button>
@@ -1059,14 +1091,14 @@ const App = () => {
                                                 <button
                                                     onClick={() => handleStartEdit(note)}
                                                     className="text-gray-400 hover:text-blue-600 p-1 bg-white/90 rounded shadow-sm"
-                                                    title="编辑"
+                                                    title={t('common.edit')}
                                                 >
                                                     <Pencil size={12} />
                                                 </button>
                                                 <button
                                                     onClick={() => handleDeleteNote(note.id)}
                                                     className="text-gray-400 hover:text-red-600 p-1 bg-white/90 rounded shadow-sm"
-                                                    title="删除"
+                                                    title={t('common.delete')}
                                                 >
                                                     <Trash2 size={12} />
                                                 </button>
@@ -1105,7 +1137,7 @@ const App = () => {
                                     type="text"
                                     value={currentNote}
                                     onChange={(e) => setCurrentNote(e.target.value)}
-                                    placeholder="Note..."
+                                    placeholder={t('common.placeholder')}
                                     className="w-full bg-transparent border-b border-gray-300 font-serif text-base focus:border-blue-400 focus:outline-none placeholder:italic placeholder:text-gray-300 py-1"
                                 />
                             </div>
@@ -1130,8 +1162,8 @@ const App = () => {
     <>
       {/* Hidden Print Template */}
       <div id="pdf-export-content" className="fixed top-0 left-[-9999px] w-[595px] bg-white p-10 font-serif text-gray-900 pointer-events-none">
-        <h1 className="text-3xl font-bold mb-4 text-gray-800 border-b-2 border-gray-800 pb-2">MEETING MINUTES</h1>
-        <p className="text-sm font-mono text-gray-500 mb-8">DATE: {new Date().toLocaleDateString()}</p>
+        <h1 className="text-3xl font-bold mb-4 text-gray-800 border-b-2 border-gray-800 pb-2">{t('common.meetingMinutes')}</h1>
+        <p className="text-sm font-mono text-gray-500 mb-8">{t('common.date')}: {new Date().toLocaleDateString()}</p>
         
         <div className="space-y-6">
             {notes.map(note => (
@@ -1161,14 +1193,14 @@ const App = () => {
       {isMiniFloatingMode && (
         <div className="fixed top-6 right-6 w-[260px] bg-[#0b1220] border border-[#1f2937] rounded-xl p-3 z-50 text-white font-['Share_Tech_Mono'] drag-region cursor-move">
           <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.3em] text-[#9ca3af] mb-2">
-            <span>Timer</span>
+            <span>{t('common.timer')}</span>
             <div className="flex items-center gap-1.5">
               <div className={`w-2 h-2 rounded-full ${recordingState === RecordingState.RECORDING ? 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.9)] animate-pulse' : 'bg-red-900'}`} />
-              <span>REC</span>
+              <span>{t('common.rec')}</span>
               <button
                 onClick={() => setShowVisualizerInMini(!showVisualizerInMini)}
                 className="text-[#94a3b8] hover:text-white transition-colors no-drag p-0.5"
-                title={showVisualizerInMini ? "隐藏拾音器" : "显示拾音器"}
+                title={showVisualizerInMini ? t('common.hideVisualizer') : t('common.showVisualizer')}
               >
                 <Monitor size={12} />
               </button>
@@ -1200,19 +1232,19 @@ const App = () => {
               {recordingState === RecordingState.RECORDING ? (
                 <>
                   <Pause size={14} />
-                  <span>Pause</span>
+                  <span>{t('common.pause')}</span>
                 </>
               ) : (
                 <>
                   <Play size={14} />
-                  <span>Resume</span>
+                  <span>{t('common.resume')}</span>
                 </>
               )}
             </button>
             <button
               onClick={handleCaptureScreen}
               className="w-10 h-8 bg-[#1e293b] hover:bg-[#0f172a] border border-[#334155] rounded-md flex items-center justify-center transition-colors no-drag"
-              title="Capture Screen"
+              title={t('common.captureScreen')}
             >
               <Camera size={14} />
             </button>
@@ -1220,7 +1252,7 @@ const App = () => {
               onClick={stopRecording}
               className="w-14 bg-[#ef4444] hover:bg-[#dc2626] border border-[#7f1d1d] rounded-md py-1.5 flex items-center justify-center text-xs font-semibold transition-colors no-drag"
             >
-              Stop
+              {t('common.stop')}
             </button>
           </div>
         </div>
@@ -1242,7 +1274,7 @@ const App = () => {
             <button
               onClick={() => setViewingImageUrl(null)}
               className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
-              title="关闭"
+              title={t('common.close')}
             >
               <X size={24} />
             </button>

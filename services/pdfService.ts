@@ -1,15 +1,18 @@
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
+import i18n from '../i18n';
 
 const ILLEGAL_FILENAME_CHARS = /[<>:"/\\|?*\x00-\x1F]/g;
 
 /**
  * 依据指定 DOM 元素生成 PDF Blob，并返回文件名以便由调用方自定义下载流程。
  */
-export const exportNotesToPDF = async (elementId: string, title: string = "Meeting Notes") => {
+export const exportNotesToPDF = async (elementId: string, title?: string) => {
+  const defaultTitle = i18n.t('common.meetingMinutes');
+  const finalTitle = title || defaultTitle;
   const element = document.getElementById(elementId);
   if (!element) {
-    throw new Error("Element not found for PDF export");
+    throw new Error(i18n.t('errors.elementNotFound'));
   }
 
   // Generate canvas from the hidden HTML template with higher resolution to keep text sharp

@@ -14,6 +14,7 @@ interface MacWindowProps {
   width?: number | string;
   height?: number | 'auto' | string;
   contentAutoHeight?: boolean;
+  headerRightContent?: React.ReactNode;
 }
 
 /**
@@ -32,6 +33,7 @@ const MacWindow: React.FC<MacWindowProps> = ({
   width,
   height,
   contentAutoHeight = false,
+  headerRightContent,
 }) => {
   const resolvedWidth = typeof width === 'number' ? `${width}px` : width;
   let resolvedHeight: string | undefined;
@@ -101,9 +103,13 @@ const MacWindow: React.FC<MacWindowProps> = ({
             {title || 'RECORDER-3000'}
           </div>
 
-          {/* Mini Mode Button (Right side) */}
-          {onMiniMode && (
-            <div className="no-drag z-10">
+          {/* Right side buttons: Language Switcher + Mini Mode */}
+          <div className="flex items-center gap-2 no-drag z-10">
+            {/* Language Switcher */}
+            {headerRightContent}
+            
+            {/* Mini Mode Button */}
+            {onMiniMode && (
               <button
                 type="button"
                 onClick={onMiniMode}
@@ -117,10 +123,10 @@ const MacWindow: React.FC<MacWindowProps> = ({
               >
                 <Minimize2 size={14} className="text-gray-600" />
               </button>
-            </div>
-          )}
-          {/* 如果没有右侧按钮，添加一个占位元素以保持布局平衡 */}
-          {!onMiniMode && <div className="w-6"></div>}
+            )}
+            {/* 如果没有 mini mode 按钮，添加一个占位元素以保持布局平衡 */}
+            {!onMiniMode && !headerRightContent && <div className="w-6"></div>}
+          </div>
         </div>
         
         {/* Main Interface */}
