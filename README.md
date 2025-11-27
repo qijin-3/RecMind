@@ -2,7 +2,7 @@
 
 <div align="center">
 
-**一款复古风格的录音与笔记应用，支持麦克风和系统音频录制，实时笔记记录，以及屏幕截图功能。**
+**面向中文用户的极简录音笔记前端伙伴，只需专注录音与笔记，剩下的交给你最熟悉的 AI 模型。**
 
 [![macOS](https://img.shields.io/badge/macOS-10.15+-blue.svg)](https://www.apple.com/macos/)
 [![Windows](https://img.shields.io/badge/Windows-10+-blue.svg)](https://www.microsoft.com/windows)
@@ -11,6 +11,40 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8.2-3178C6.svg)](https://www.typescriptlang.org/)
 
 </div>
+
+## 📝 RecMind 产品说明
+
+### 一句话介绍
+
+一款专为中文用户设计的轻量级录音笔记工具，让你用最简单的方式记录，再交给 AI 生成你想要的任何内容。
+
+### 🎯 它是什么？
+
+RecMind 是一个纯音频录制 + 实时笔记的小工具。它不录屏、不转写、不生成 AI 摘要，只专注于帮你完整记录会议、播客或任何值得保存的声音，并配上你的笔记和截图。随后，你可以把这些素材交给任意大语言模型（Gemini、千问、ChatGPT、Claude 等），让 AI 生成会议纪要、逐字稿、播客笔记或任何你需要的内容。
+
+### 💡 为什么做它？
+
+**灵感来源**  
+项目灵感来自 Granola。
+
+**痛点**  
+- Granola不支持中文场景，没法完成中文场景下的录音和会议纪要  
+- mac没有纯粹的录音app，只有录屏app或者播放器携带录音功能
+
+### 🎨 产品定位
+
+RecMind是极简录音笔记前端工具 + AI 大模型的最佳拍档。
+
+**设计哲学**
+- 专注录制：把录音和笔记做到最简单、最流畅
+- 不做 AI（目前）：不内置转写或摘要，充分利用你最熟悉的大模型
+- 开放生态：与所有 AI 模型天然兼容
+
+**典型工作流**
+1. RecMind 录音 + 实时笔记 + 截图  
+2. 导出音频（M4A/WAV）与 PDF 笔记  
+3. 上传到任意大模型（Gemini / 千问 / ChatGPT / Claude）  
+4. 生成会议纪要、逐字稿、播客笔记等自定义内容
 
 ## ✨ 功能特性
 
@@ -25,7 +59,7 @@
 - **时间戳记录**：每条笔记自动记录相对时间戳
 - **图片附件**：支持上传图片和屏幕截图
 - **笔记编辑**：支持编辑和删除已有笔记
-- **PDF 导出**：将笔记导出为精美的 PDF 文档
+- **PDF 导出**：将笔记导出为 PDF 文档
 
 ### 📸 屏幕截图
 - **一键截图**：快速捕获当前屏幕内容
@@ -33,7 +67,7 @@
 - **多显示器支持**：智能识别当前窗口所在显示器
 
 ### 💾 导出功能
-- **音频导出**：录音导出为 WAV 格式
+- **音频导出**：录音导出为 m4a 格式
 - **PDF 导出**：笔记导出为 PDF 文档
 - **打包下载**：自动打包音频和 PDF 为 ZIP 文件
 
@@ -41,6 +75,7 @@
 - **复古 Mac 风格**：经典的 Mac 窗口设计
 - **迷你悬浮模式**：录音时可切换到迷你悬浮窗口
 - **响应式布局**：根据功能自动调整窗口大小
+- **多语言切换**：支持中英文界面
 
 ## 🚀 快速开始
 
@@ -101,8 +136,23 @@ npm run desktop:build
 ```
 
 构建产物将输出到 `release/` 目录：
-- **Mac**: `RecMind-0.0.0-arm64.dmg` (Apple Silicon) 和 `RecMind-0.0.0.dmg` (Intel)
-- **Windows**: `RecMind Setup 0.0.0.exe` (包含 x64 和 ia32)
+- **Mac**: `RecMind-0.1.1-arm64.dmg` (Apple Silicon) 和 `RecMind-0.1.1.dmg` (Intel)
+- **Windows**: `RecMind Setup 0.1.1.exe` (包含 x64 和 ia32)
+
+## macOS 安装
+
+1. 下载并打开 `RecMind.dmg`
+2. 将 RecMind 拖动到 `应用程序` 文件夹
+3. **首次启动需右键** RecMind 图标，选择“打开”，才能绕过 Gatekeeper
+4. 完成一次上述步骤后，后续可直接双击运行
+
+**遇到“已损坏”提示？**
+
+在终端执行以下命令，再重新打开应用：
+
+```bash
+xattr -cr /Applications/RecMind.app
+```
 
 ## 📦 项目结构
 
@@ -187,6 +237,10 @@ RecMind/
 - **productName**: `RecMind`
 - **输出目录**: `release/`
 
+## 📈 性能优化计划
+
+想了解正在进行和计划中的性能优化项，可查看 `docs/performance-optimization-plan.md`，里面记录了可视化渲染管线、内存占用以及打包体积等方面的优化路线图。
+
 ## 🐛 故障排除
 
 ### 录音权限问题
@@ -219,6 +273,11 @@ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npm run desktop:build:ma
 欢迎提交 Issue 和 Pull Request！
 
 ## 📝 更新日志
+
+### v0.1.1
+- 🌐 引入 LanguageSwitcher，支持中英文界面即时切换
+- 📈 新增性能优化计划文档并在 README 中提供链接
+- 📝 文档与构建产物版本信息更新至 0.1.1
 
 ### v0.0.0
 - ✨ 初始版本发布
