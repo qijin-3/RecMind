@@ -8,13 +8,39 @@ interface UseAudioRecorderReturn {
   pauseRecording: () => void;
   resumeRecording: () => void;
   audioBlob: Blob | null;
+  audioMimeType: string | null; // 录制的音频 MIME 类型
   duration: number; // in seconds
   analyser: AnalyserNode | null;
+}
+
+/**
+ * 检测浏览器支持的最佳音频录制格式
+ * 优先级：audio/mp4 (M4A) > audio/webm;codecs=opus > 浏览器默认格式
+ * @returns 支持的 MIME 类型字符串
+ */
+function getBestAudioMimeType(): string {
+  const preferredTypes = [
+    'audio/mp4', // Mac Safari 原生支持，直接就是 M4A
+    'audio/webm;codecs=opus', // Chrome 支持，文件更小
+    'audio/webm', // 降级选项
+  ];
+
+  for (const mimeType of preferredTypes) {
+    if (MediaRecorder.isTypeSupported(mimeType)) {
+      console.log(`使用音频格式: ${mimeType}`);
+      return mimeType;
+    }
+  }
+
+  // 如果都不支持，返回空字符串，让浏览器使用默认格式
+  console.warn('未找到支持的音频格式，使用浏览器默认格式');
+  return '';
 }
 
 export const useAudioRecorder = (): UseAudioRecorderReturn => {
   const [recordingState, setRecordingState] = useState<RecordingState>(RecordingState.IDLE);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioMimeType, setAudioMimeType] = useState<string | null>(null);
   const [duration, setDuration] = useState(0);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
 
@@ -24,6 +50,7 @@ export const useAudioRecorder = (): UseAudioRecorderReturn => {
   const chunksRef = useRef<Blob[]>([]);
   const startTimeRef = useRef<number>(0);
   const timerIntervalRef = useRef<number | null>(null);
+  const mimeTypeRef = useRef<string>(''); // 保存当前录制使用的 MIME 类型
 
   // Timer logic
   useEffect(() => {
@@ -115,17 +142,34 @@ export const useAudioRecorder = (): UseAudioRecorderReturn => {
         }
       }
 
-      // 3. Start Recorder
-      const recorder = new MediaRecorder(dest.stream);
+      // 3. 检测并选择最佳音频格式
+      const mimeType = getBestAudioMimeType();
+      mimeTypeRef.current = mimeType;
+      setAudioMimeType(mimeType);
+
+      // 4. 创建 MediaRecorder，指定格式和比特率
+      const options: MediaRecorderOptions = {
+        mimeType: mimeType || undefined, // 如果为空字符串，使用浏览器默认
+        audioBitsPerSecond: 96000, // 96kbps，平衡质量和文件大小
+      };
+
+      const recorder = new MediaRecorder(dest.stream, options);
       mediaRecorderRef.current = recorder;
+
+      // 记录实际使用的 MIME 类型（可能与请求的不同）
+      const actualMimeType = recorder.mimeType || mimeType || 'audio/webm';
+      console.log(`实际使用的音频格式: ${actualMimeType}, 比特率: ${recorder.audioBitsPerSecond || 96000}bps`);
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        // 使用实际录制的 MIME 类型创建 Blob
+        const finalMimeType = recorder.mimeType || mimeTypeRef.current || 'audio/webm';
+        const blob = new Blob(chunksRef.current, { type: finalMimeType });
         setAudioBlob(blob);
+        setAudioMimeType(finalMimeType);
         
         // Stop all tracks in all collected streams
         streamsRef.current.forEach(stream => {
@@ -177,6 +221,7 @@ export const useAudioRecorder = (): UseAudioRecorderReturn => {
     pauseRecording,
     resumeRecording,
     audioBlob,
+    audioMimeType,
     duration,
     analyser
   };

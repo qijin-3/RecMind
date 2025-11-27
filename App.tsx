@@ -25,6 +25,7 @@ const App = () => {
     pauseRecording,
     resumeRecording,
     audioBlob,
+    audioMimeType,
     duration,
     analyser
   } = useAudioRecorder();
@@ -189,35 +190,36 @@ const App = () => {
   };
 
   /**
-   * 将录制得到的 Blob 转换为 WAV Blob。
+   * 根据 MIME 类型获取文件扩展名
    */
-  const convertAudioBlobToWav = async (blob: Blob) => {
-    const arrayBuffer = await blob.arrayBuffer();
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioCtx) {
-      throw new Error('AudioContext not supported');
+  const getFileExtensionFromMimeType = (mimeType: string | null): string => {
+    if (!mimeType) return 'webm'; // 默认扩展名
+    
+    if (mimeType.includes('mp4') || mimeType.includes('m4a')) {
+      return 'm4a';
     }
-    const audioContext = new AudioCtx();
-    try {
-      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
-      const wavBuffer = encodeAudioBufferToWav(audioBuffer);
-      return new Blob([wavBuffer], { type: 'audio/wav' });
-    } finally {
-      await audioContext.close();
+    if (mimeType.includes('webm')) {
+      return 'webm';
     }
+    if (mimeType.includes('ogg')) {
+      return 'ogg';
+    }
+    
+    return 'webm'; // 降级到 webm
   };
 
   /**
-   * 生成当前音频的 WAV Blob 及文件名。
+   * 生成当前音频文件的 Blob 及文件名。
+   * 直接使用录制的格式，无需转换。
    */
-  const buildAudioFilePayload = async () => {
+  const buildAudioFilePayload = () => {
     if (!audioBlob) {
       throw new Error('No audio available for export');
     }
     const baseFileName = `recording-${new Date().toISOString().replace(/[:.]/g, '-')}`;
-    const wavBlob = await convertAudioBlobToWav(audioBlob);
-    const fileName = buildSafeFileName(baseFileName, 'wav');
-    return { blob: wavBlob, fileName, baseFileName };
+    const extension = getFileExtensionFromMimeType(audioMimeType);
+    const fileName = buildSafeFileName(baseFileName, extension);
+    return { blob: audioBlob, fileName, baseFileName };
   };
 
   /**
@@ -540,16 +542,21 @@ const App = () => {
   };
 
   /**
-   * 将录音直接下载为 WAV。
+   * 将录音直接下载。
+   * 格式根据浏览器支持自动选择（M4A 或 WebM）。
    */
-  const handleDownloadAudio = async () => {
+  const handleDownloadAudio = () => {
     if (!audioBlob) return;
     try {
-      const { blob, fileName } = await buildAudioFilePayload();
+      const { blob, fileName } = buildAudioFilePayload();
       triggerBlobDownload(blob, fileName);
+      const format = getFileExtensionFromMimeType(audioMimeType).toUpperCase();
+      setToastMessage(`音频已保存为 ${format} 格式`);
+      setTimeout(() => setToastMessage(null), 2000);
     } catch (error) {
-      console.error('Failed to export WAV audio', error);
-      alert('音频转换失败，请稍后重试。');
+      console.error('Failed to export audio', error);
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
+      alert(`音频保存失败: ${errorMessage}。请稍后重试。`);
     }
   };
 
@@ -558,24 +565,27 @@ const App = () => {
    */
   const handleSaveRecording = async () => {
     if (!audioBlob) return;
-    if (!hasNotes) {
-      await handleDownloadAudio();
-      return;
-    }
     try {
-      const [audioPayload, notesPayload] = await Promise.all([
-        buildAudioFilePayload(),
-        buildNotesPdfPayload(),
-      ]);
+      if (!hasNotes) {
+        handleDownloadAudio();
+        return;
+      }
+      
+      const audioPayload = buildAudioFilePayload();
+      const notesPayload = buildNotesPdfPayload();
+      
       const zip = new JSZip();
       zip.file(audioPayload.fileName, audioPayload.blob);
       zip.file(notesPayload.fileName, notesPayload.blob);
       const zipBlob = await zip.generateAsync({ type: 'blob' });
       const zipFileName = buildSafeFileName(audioPayload.baseFileName, 'zip');
       triggerBlobDownload(zipBlob, zipFileName);
+      setToastMessage('文件已打包保存');
+      setTimeout(() => setToastMessage(null), 2000);
     } catch (error) {
       console.error('Failed to export bundled download', error);
-      alert('打包下载失败，请稍后重试。');
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
+      alert(`打包下载失败: ${errorMessage}。请稍后重试。`);
     }
   };
 
