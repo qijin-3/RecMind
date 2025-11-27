@@ -7,9 +7,18 @@ import { Mic, StopCircle, Play, Pause, Image as ImageIcon, Download, Plus, Penci
 import { exportNotesToPDF } from './services/pdfService';
 import JSZip from 'jszip';
 
+/**
+ * 录音状态的窗口高度配置
+ */
+const RECORDING_STATE_HEIGHTS = {
+  idle: 340,        // 未录音状态：340px
+  recording: 320,   // 录音中状态：320px
+  completed: 320,   // 录音完成状态：320px
+} as const;
+
 const WINDOW_LAYOUTS = {
   minimized: { width: 340, height: 320, minWidth: 320, minHeight: 300 },
-  default: { width: 420, height: 320, minWidth: 360, minHeight: 300 },
+  default: { width: 420, height: 320, minWidth: 360, minHeight: 320 },
   notes: { width: 520, height: 720, minWidth: 480, minHeight: 600 },
   miniFloating: { width: 280, height: 140, minWidth: 260, minHeight: 120 },
 } as const;
@@ -636,21 +645,58 @@ const App = () => {
 
   const isPreRecordingState = recordingState === RecordingState.IDLE && !audioBlob;
 
-  useEffect(() => {
-    // 统一使用 default 布局的高度（320px），保持未录音、录音中、录音结束后三个状态一致
-    const layout = WINDOW_LAYOUTS[layoutKey];
-    // 如果不在 notes 模式，统一使用 default 的高度 320px
-    let finalLayout = layoutKey === 'notes' 
-      ? layout 
-      : { ...layout, height: WINDOW_LAYOUTS.default.height };
-    
-    // 针对低分辨率屏幕：限制笔记模式的最大高度，确保不超出屏幕
-    if (layoutKey === 'notes' && typeof window !== 'undefined') {
-      const maxHeight = window.innerHeight - 100; // 预留 100px 给系统栏和边距
-      if (finalLayout.height > maxHeight) {
-        finalLayout = { ...finalLayout, height: Math.max(finalLayout.minHeight || 600, maxHeight) };
-      }
+  /**
+   * 根据录音状态获取对应的窗口高度
+   */
+  const getRecordingStateHeight = useMemo(() => {
+    if (recordingState === RecordingState.IDLE) {
+      return audioBlob ? RECORDING_STATE_HEIGHTS.completed : RECORDING_STATE_HEIGHTS.idle;
     }
+    return RECORDING_STATE_HEIGHTS.recording;
+  }, [recordingState, audioBlob]);
+
+  /**
+   * 动态调整窗口高度，根据录音状态切换
+   */
+  useEffect(() => {
+    // 如果处于 notes 模式或 miniFloating 模式，使用原有逻辑
+    if (layoutKey === 'notes' || layoutKey === 'miniFloating') {
+      const layout = WINDOW_LAYOUTS[layoutKey];
+      let finalLayout = layout;
+      
+      // 针对低分辨率屏幕：限制笔记模式的最大高度，确保不超出屏幕
+      if (layoutKey === 'notes' && typeof window !== 'undefined') {
+        const maxHeight = window.innerHeight - 100; // 预留 100px 给系统栏和边距
+        if (finalLayout.height > maxHeight) {
+          finalLayout = { ...finalLayout, height: Math.max(finalLayout.minHeight || 600, maxHeight) };
+        }
+      }
+      
+      setWindowSize({ width: finalLayout.width, height: finalLayout.height });
+
+      if (window.desktop?.send) {
+        window.desktop.send('renderer-window-layout', {
+          ...finalLayout,
+          resizable: !isPreRecordingState,
+          fullscreenable: !isPreRecordingState,
+          animate: false,
+        });
+      }
+      return;
+    }
+
+    // 对于 default 和 minimized 模式，根据录音状态动态调整高度
+    const layout = WINDOW_LAYOUTS[layoutKey];
+    const targetHeight = layoutKey === 'minimized' 
+      ? WINDOW_LAYOUTS.minimized.height 
+      : getRecordingStateHeight;
+    
+    const finalLayout = {
+      ...layout,
+      width: layout.width,
+      height: targetHeight,
+      minHeight: 320, // 最小高度 320px
+    };
     
     setWindowSize({ width: finalLayout.width, height: finalLayout.height });
 
@@ -659,9 +705,11 @@ const App = () => {
         ...finalLayout,
         resizable: !isPreRecordingState,
         fullscreenable: !isPreRecordingState,
+        animate: true, // 启用平滑过渡动画
+        animationDuration: 300, // 300ms 动画时长
       });
     }
-  }, [layoutKey, isPreRecordingState]);
+  }, [layoutKey, isPreRecordingState, getRecordingStateHeight]);
 
   const hasNotes = notes.length > 0;
   const isRecordingActive = recordingState === RecordingState.RECORDING || recordingState === RecordingState.PAUSED;
@@ -749,11 +797,11 @@ const App = () => {
       contentAutoHeight={false}
     >
     {/* Main Interface Wrapper (Vertical Layout) */}
-    <div className={`bg-[#d4d4d8] flex flex-col relative overflow-hidden ${isNotesOpen ? 'flex-1 h-full min-h-0' : 'h-full'}`}>
+    <div className={`bg-[#d4d4d8] flex flex-col relative overflow-hidden h-full`}>
         
         {/* --- TOP PANEL: RECORDER INTERFACE --- */}
-        {/* 所有模式下都使用 flex-none，只占据内容所需空间，确保高度一致为 320px */}
-        <div className={`flex flex-col items-center w-full transition-all duration-300 z-20 shadow-md bg-[#d4d4d8] flex-none shrink-0 ${isMinimized ? 'p-3' : 'px-5 pt-3 pb-3'}`}>
+        {/* 笔记模式下使用 flex-none，非笔记模式下使用 flex-1 撑满窗口 */}
+        <div className={`flex flex-col items-center w-full transition-all duration-300 z-20 shadow-md bg-[#d4d4d8] ${isNotesOpen ? 'flex-none shrink-0' : 'flex-1 min-h-0'} ${isMinimized ? 'p-3' : 'px-5 pt-3 pb-3'}`}>
 
             {/* LCD Display Panel - Compact */}
             <div className={`w-full bg-[#111827] rounded-lg p-1 border-2 border-gray-500 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] ${isMinimized ? 'mb-2' : 'mb-2'}`}>
@@ -782,12 +830,12 @@ const App = () => {
                  </div>
             </div>
 
-            {/* Controls Area - 紧凑排列，确保高度一致 */}
-            <div className="flex flex-col items-center gap-2.5 w-full">
+            {/* Controls Area - 非笔记模式下撑满剩余空间，笔记模式下紧凑排列 */}
+            <div className={`flex flex-col items-center gap-2.5 w-full ${isNotesOpen ? '' : 'flex-1 justify-center min-h-0'}`}>
                 
                 {/* IDLE STATE: Config & Start */}
                 {!isMinimized && recordingState === RecordingState.IDLE && (
-                    <div className="w-full flex flex-col items-center gap-3">
+                    <div className="w-full flex flex-col items-center gap-3 transition-opacity duration-300">
                         {/* If audioBlob exists (Recording finished), show Download/Reset */}
                         {audioBlob ? (
                             <div className="flex flex-col items-center w-full gap-2 animate-in fade-in duration-300">
@@ -858,7 +906,7 @@ const App = () => {
 
                 {/* RECORDING STATE: Transport Controls */}
                 {recordingState !== RecordingState.IDLE && (
-                    <div className="flex items-center justify-between w-full px-2">
+                    <div className="flex items-center justify-between w-full px-2 transition-opacity duration-300 animate-in fade-in">
                          {/* Play/Pause/Stop Container */}
                          <div className="flex items-center gap-3 bg-[#e5e5e5] p-1.5 rounded-full border border-white shadow-inner">
                             {recordingState === RecordingState.RECORDING ? (

@@ -93,6 +93,76 @@ function registerAppEventHandlers() {
 /**
  * 注册渲染进程可用的 IPC 事件，用于根据内容尺寸动态调整窗口。
  */
+/**
+ * 平滑调整窗口大小，使用动画过渡
+ * @param {BrowserWindow} window - 目标窗口
+ * @param {number} targetWidth - 目标宽度
+ * @param {number} targetHeight - 目标高度
+ * @param {number} duration - 动画持续时间（毫秒）
+ */
+function animateWindowSize(window, targetWidth, targetHeight, duration = 300) {
+  if (!window || window.isDestroyed()) {
+    return;
+  }
+
+  const [currentWidth, currentHeight] = window.getContentSize();
+  const startTime = Date.now();
+  const startWidth = currentWidth;
+  const startHeight = currentHeight;
+  const deltaWidth = targetWidth - startWidth;
+  const deltaHeight = targetHeight - startHeight;
+
+  // 如果尺寸没有变化，直接返回
+  if (deltaWidth === 0 && deltaHeight === 0) {
+    return;
+  }
+
+  /**
+   * 缓动函数：ease-in-out
+   * @param {number} t - 时间进度 (0-1)
+   * @returns {number} - 缓动后的进度
+   */
+  function easeInOut(t) {
+    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  }
+
+  const frameInterval = 16; // 约 60fps
+  let animationId = null;
+
+  function animate() {
+    const elapsed = Date.now() - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const easedProgress = easeInOut(progress);
+
+    const newWidth = Math.round(startWidth + deltaWidth * easedProgress);
+    const newHeight = Math.round(startHeight + deltaHeight * easedProgress);
+
+    if (!window.isDestroyed()) {
+      window.setContentSize(newWidth, newHeight);
+    }
+
+    if (progress < 1) {
+      animationId = setTimeout(animate, frameInterval);
+    } else {
+      // 确保最终尺寸精确
+      if (!window.isDestroyed()) {
+        window.setContentSize(targetWidth, targetHeight);
+      }
+      animationId = null;
+    }
+  }
+
+  animate();
+
+  // 返回清理函数（如果需要提前停止动画）
+  return () => {
+    if (animationId !== null) {
+      clearTimeout(animationId);
+      animationId = null;
+    }
+  };
+}
+
 function registerIpcHandlers() {
   ipcMain.on('renderer-window-layout', (_event, payload) => {
     if (!mainWindow || mainWindow.isDestroyed()) {
@@ -107,10 +177,25 @@ function registerIpcHandlers() {
 
     const targetWidth = payload?.width;
     const targetHeight = payload?.height;
+    const animate = payload?.animate === true;
+    const animationDuration = payload?.animationDuration ?? 300;
+
     if (typeof targetWidth === 'number' && typeof targetHeight === 'number') {
       const safeWidth = Math.max(minWidth, Math.round(targetWidth));
       const safeHeight = Math.max(minHeight, Math.round(targetHeight));
-      mainWindow.setContentSize(safeWidth, safeHeight);
+      
+      // 检查屏幕边界
+      const display = screen.getDisplayMatching(mainWindow.getBounds());
+      const maxWidth = display.workAreaSize.width;
+      const maxHeight = display.workAreaSize.height;
+      const finalWidth = Math.min(safeWidth, maxWidth);
+      const finalHeight = Math.min(safeHeight, maxHeight);
+
+      if (animate) {
+        animateWindowSize(mainWindow, finalWidth, finalHeight, animationDuration);
+      } else {
+        mainWindow.setContentSize(finalWidth, finalHeight);
+      }
     }
 
     if (typeof payload?.resizable === 'boolean') {
