@@ -62,11 +62,12 @@ const MacWindow: React.FC<MacWindowProps> = ({
       <div className="absolute inset-[3px] rounded-lg bg-gradient-to-br from-[#f3f4f6] to-[#d1d5db] z-0 pointer-events-none border border-white/50"></div>
 
       {/* Content Container */}
-      <div className={`relative z-10 flex flex-col rounded-lg overflow-hidden m-[6px] border border-gray-400 bg-[#e5e5e5] ${contentAutoHeight ? '' : 'h-full'}`}>
+      <div className={`relative z-10 flex flex-col rounded-lg m-[6px] border border-gray-400 bg-[#e5e5e5] ${contentAutoHeight ? '' : 'h-full'}`} style={{ overflow: 'hidden' }}>
         
         {/* Retro Header / Faceplate Top */}
         <div 
           className="h-10 bg-gradient-to-b from-[#e5e7eb] to-[#d1d5db] border-b border-gray-400 flex items-center justify-between px-3 select-none shrink-0 shadow-sm drag-region relative"
+          style={{ overflow: 'visible', zIndex: 100 }}
           onDoubleClick={onFullscreen}
         >
           
@@ -104,7 +105,7 @@ const MacWindow: React.FC<MacWindowProps> = ({
           </div>
 
           {/* Right side buttons: Language Switcher + Mini Mode */}
-          <div className="flex items-center gap-2 no-drag z-10">
+          <div className="flex items-center gap-2 no-drag z-[100]">
             {/* Language Switcher */}
             {headerRightContent}
             

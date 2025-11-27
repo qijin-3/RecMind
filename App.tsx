@@ -51,6 +51,10 @@ const App = () => {
   // Visibility State for Notes
   const [isNotesOpen, setIsNotesOpen] = useState(false);
 
+  // Language Switcher Dropdown State
+  const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
+  const languageMenuRef = useRef<HTMLDivElement>(null);
+
   // Window Size State
   const [windowSize, setWindowSize] = useState<{width: number, height: number}>({ width: WINDOW_LAYOUTS.default.width, height: WINDOW_LAYOUTS.default.height });
 
@@ -799,31 +803,80 @@ const App = () => {
     </div>
   );
 
+  /**
+   * 处理语言切换
+   */
+  const handleLanguageChange = (lang: 'zh' | 'en') => {
+    i18n.changeLanguage(lang);
+    setIsLanguageMenuOpen(false);
+  };
+
+  /**
+   * 点击外部区域关闭语言菜单
+   */
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (languageMenuRef.current && !languageMenuRef.current.contains(event.target as Node)) {
+        setIsLanguageMenuOpen(false);
+      }
+    };
+
+    if (isLanguageMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isLanguageMenuOpen]);
+
+  /**
+   * 获取当前语言的显示文本
+   */
+  const getCurrentLanguageText = () => {
+    return i18n.language === 'zh' ? '中' : 'EN';
+  };
+
   // Language Switcher Component for Header
   const languageSwitcher = (
-    <div className="flex items-center gap-1">
+    <div className="relative z-[100]" ref={languageMenuRef}>
       <button
-        onClick={() => i18n.changeLanguage('zh')}
-        className={`px-1.5 py-0.5 text-[10px] rounded transition-colors font-mono ${
-          i18n.language === 'zh' 
-            ? 'bg-blue-500 text-white shadow-sm' 
+        onClick={() => setIsLanguageMenuOpen(!isLanguageMenuOpen)}
+        className={`px-2 py-1 text-[10px] rounded transition-colors font-mono flex items-center gap-1 ${
+          isLanguageMenuOpen
+            ? 'bg-blue-500 text-white shadow-sm'
             : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
         }`}
-        title="中文"
+        title={i18n.language === 'zh' ? '中文' : 'English'}
       >
-        中
+        <span>{getCurrentLanguageText()}</span>
+        <ChevronDown 
+          size={10} 
+          className={`transition-transform ${isLanguageMenuOpen ? 'rotate-180' : ''}`} 
+        />
       </button>
-      <button
-        onClick={() => i18n.changeLanguage('en')}
-        className={`px-1.5 py-0.5 text-[10px] rounded transition-colors font-mono ${
-          i18n.language === 'en' 
-            ? 'bg-blue-500 text-white shadow-sm' 
-            : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-        }`}
-        title="English"
-      >
-        EN
-      </button>
+      
+      {/* Dropdown Menu */}
+      {isLanguageMenuOpen && (
+        <div className="absolute top-full right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-[100] min-w-[60px] overflow-visible">
+          <button
+            onClick={() => handleLanguageChange('zh')}
+            className={`w-full px-2 py-1.5 text-[10px] font-mono text-left hover:bg-gray-100 transition-colors first:rounded-t-md last:rounded-b-md ${
+              i18n.language === 'zh' ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-gray-700'
+            }`}
+          >
+            中文
+          </button>
+          <button
+            onClick={() => handleLanguageChange('en')}
+            className={`w-full px-2 py-1.5 text-[10px] font-mono text-left hover:bg-gray-100 transition-colors first:rounded-t-md last:rounded-b-md ${
+              i18n.language === 'en' ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-gray-700'
+            }`}
+          >
+            English
+          </button>
+        </div>
+      )}
     </div>
   );
 
