@@ -1,12 +1,13 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import MacWindow from './components/MacWindow';
-import Visualizer from './components/Visualizer';
 import { useAudioRecorder } from './hooks/useAudioRecorder';
 import { Note, RecordingState } from './types';
 import { Mic, StopCircle, Play, Pause, Image as ImageIcon, Download, Plus, Pencil, Check, X, Monitor, ChevronDown, ChevronUp, Paperclip, Trash2, Minimize2, Maximize2, Camera, FileText } from 'lucide-react';
 import { exportNotesToPDF } from './services/pdfService';
-import JSZip from 'jszip';
+import type JSZipType from 'jszip';
+
+const Visualizer = React.lazy(() => import('./components/Visualizer'));
 
 const WINDOW_LAYOUTS = {
   minimized: { width: 340, height: 320, minWidth: 320, minHeight: 300 },
@@ -27,6 +28,18 @@ const RECORDING_STATE_HEIGHTS = {
 
 // 移除 PRE_RECORD_WINDOW，统一使用 default 布局高度
 const INVALID_FILENAME_CHARS = /[<>:"/\\|?*\x00-\x1F]/g;
+
+let jsZipConstructorPromise: Promise<JSZipType> | null = null;
+
+/**
+ * 懒加载 JSZip 构造函数，避免主 bundle 直接引入重型依赖。
+ */
+const loadJSZip = async (): Promise<JSZipType> => {
+  if (!jsZipConstructorPromise) {
+    jsZipConstructorPromise = import('jszip').then(module => module.default);
+  }
+  return jsZipConstructorPromise;
+};
 
 const App = () => {
   const { t, i18n } = useTranslation();
@@ -593,6 +606,7 @@ const App = () => {
       // buildNotesPdfPayload 返回 Promise，需要 await
       const notesPayload = await buildNotesPdfPayload();
       
+      const JSZip = await loadJSZip();
       const zip = new JSZip();
       zip.file(audioPayload.fileName, audioPayload.blob);
       zip.file(notesPayload.fileName, notesPayload.blob);
@@ -924,7 +938,9 @@ const App = () => {
                     {/* Visualizer Container - Shorter */}
                     <div className="w-full h-10 mt-2 border border-gray-700 bg-black relative">
                         <div className="absolute inset-0 z-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 pointer-events-none"></div>
-                        <Visualizer analyser={analyser} isActive={recordingState === RecordingState.RECORDING} />
+                        <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-[10px] text-gray-500">...</div>}>
+                          <Visualizer analyser={analyser} isActive={recordingState === RecordingState.RECORDING} />
+                        </Suspense>
                     </div>
                  </div>
             </div>
@@ -1273,7 +1289,9 @@ const App = () => {
           {showVisualizerInMini && (
             <div className="h-10 bg-[#020617] border border-[#1e293b] rounded-md overflow-hidden relative mb-2">
               <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
-              <Visualizer analyser={analyser} isActive={recordingState === RecordingState.RECORDING} />
+              <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-[10px] text-gray-500">...</div>}>
+                <Visualizer analyser={analyser} isActive={recordingState === RecordingState.RECORDING} />
+              </Suspense>
             </div>
           )}
 

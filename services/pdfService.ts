@@ -1,8 +1,31 @@
-import { jsPDF } from "jspdf";
-import html2canvas from "html2canvas";
 import i18n from '../i18n';
 
 const ILLEGAL_FILENAME_CHARS = /[<>:"/\\|?*\x00-\x1F]/g;
+
+let html2canvasModulePromise: Promise<typeof import('html2canvas')> | null = null;
+let jsPdfModulePromise: Promise<typeof import('jspdf')> | null = null;
+
+/**
+ * 懒加载 html2canvas，避免首屏同步引入重型渲染库。
+ */
+const loadHtml2Canvas = async () => {
+  if (!html2canvasModulePromise) {
+    html2canvasModulePromise = import('html2canvas');
+  }
+  const module = await html2canvasModulePromise;
+  return module.default;
+};
+
+/**
+ * 懒加载 jsPDF，导出时按需获取构造函数以减小主 bundle。
+ */
+const loadJsPDF = async () => {
+  if (!jsPdfModulePromise) {
+    jsPdfModulePromise = import('jspdf');
+  }
+  const module = await jsPdfModulePromise;
+  return module.jsPDF;
+};
 
 /**
  * 依据指定 DOM 元素生成 PDF Blob，并返回文件名以便由调用方自定义下载流程。
@@ -14,6 +37,9 @@ export const exportNotesToPDF = async (elementId: string, title?: string) => {
   if (!element) {
     throw new Error(i18n.t('errors.elementNotFound'));
   }
+
+  const html2canvas = await loadHtml2Canvas();
+  const jsPDF = await loadJsPDF();
 
   // Generate canvas from the hidden HTML template with higher resolution to keep text sharp
   const canvas = await html2canvas(element, {
