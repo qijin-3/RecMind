@@ -266,7 +266,7 @@ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npm run desktop:build:ma
 
 ## 📄 许可证
 
-本项目为私有项目。
+本项目基于 **GNU Affero General Public License v3.0 (AGPL-3.0)** 开源发布。使用、分发或基于本项目部署网络服务时，请遵循 `LICENSE` 中的条款，并确保向最终用户开放对应的源代码。
 
 ## 🤝 贡献
 
