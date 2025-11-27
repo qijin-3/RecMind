@@ -7,20 +7,21 @@ import { Mic, StopCircle, Play, Pause, Image as ImageIcon, Download, Plus, Penci
 import { exportNotesToPDF } from './services/pdfService';
 import JSZip from 'jszip';
 
-/**
- * 录音状态的窗口高度配置
- */
-const RECORDING_STATE_HEIGHTS = {
-  idle: 340,        // 未录音状态：340px
-  recording: 320,   // 录音中状态：320px
-  completed: 320,   // 录音完成状态：320px
-} as const;
-
 const WINDOW_LAYOUTS = {
   minimized: { width: 340, height: 320, minWidth: 320, minHeight: 300 },
   default: { width: 420, height: 320, minWidth: 360, minHeight: 320 },
   notes: { width: 520, height: 720, minWidth: 480, minHeight: 600 },
   miniFloating: { width: 280, height: 140, minWidth: 260, minHeight: 120 },
+} as const;
+
+/**
+ * 录音状态的窗口高度配置
+ * 注意：recording 和 completed 状态使用相同的默认高度（320px）
+ */
+const RECORDING_STATE_HEIGHTS = {
+  idle: 340,        // 未录音状态：340px（需要更多空间显示配置选项）
+  recording: WINDOW_LAYOUTS.default.height,   // 录音中状态：使用默认高度
+  completed: WINDOW_LAYOUTS.default.height,  // 录音完成状态：使用默认高度
 } as const;
 
 // 移除 PRE_RECORD_WINDOW，统一使用 default 布局高度
@@ -723,6 +724,19 @@ const App = () => {
       }
     }
   }, [isRecordingActive]);
+
+  /**
+   * 录音完成后，如果笔记内容为空，自动关闭笔记窗口
+   */
+  useEffect(() => {
+    // 录音完成：状态为 IDLE 且有音频数据，且笔记窗口是打开的
+    if (recordingState === RecordingState.IDLE && audioBlob && isNotesOpen) {
+      // 如果笔记为空，自动关闭笔记窗口
+      if (!hasNotes) {
+        setIsNotesOpen(false);
+      }
+    }
+  }, [recordingState, audioBlob, isNotesOpen, hasNotes]);
   
   const toggleNotes = () => setIsNotesOpen(!isNotesOpen);
 
