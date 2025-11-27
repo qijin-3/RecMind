@@ -224,9 +224,10 @@ const App = () => {
 
   /**
    * 生成当前笔记的 PDF Blob 及文件名。
+   * @returns Promise<{blob: Blob, fileName: string}>
    */
-  const buildNotesPdfPayload = () => {
-    return exportNotesToPDF('pdf-export-content', `Meeting Notes ${new Date().toLocaleDateString()}`);
+  const buildNotesPdfPayload = async () => {
+    return await exportNotesToPDF('pdf-export-content', `Meeting Notes ${new Date().toLocaleDateString()}`);
   };
 
   /**
@@ -572,7 +573,8 @@ const App = () => {
       }
       
       const audioPayload = buildAudioFilePayload();
-      const notesPayload = buildNotesPdfPayload();
+      // buildNotesPdfPayload 返回 Promise，需要 await
+      const notesPayload = await buildNotesPdfPayload();
       
       const zip = new JSZip();
       zip.file(audioPayload.fileName, audioPayload.blob);
