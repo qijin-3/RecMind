@@ -21,9 +21,9 @@ let mainWindow = null;
 function createMainWindow() {
   /**
    * 获取应用图标路径。
-   * 开发环境和生产环境都使用 public/ico.png
+   * 开发环境和生产环境都使用 public/logo.png
    */
-  const iconPath = join(__dirname, '..', 'public', 'ico.png');
+  const iconPath = join(__dirname, '..', 'public', 'logo.png');
   
   const window = new BrowserWindow({
     width: WINDOW_WIDTH,

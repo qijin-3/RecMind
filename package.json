@@ -41,8 +41,7 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
-      "package.json",
-      "public/ico.png"
+      "package.json"
     ],
     "directories": {
       "output": "release",
@@ -50,6 +49,7 @@
     },
     "mac": {
       "category": "public.app-category.productivity",
+      "icon": "build/icon.png",
       "target": [
         {
           "target": "dmg",
@@ -70,7 +70,7 @@
           ]
         }
       ],
-      "icon": "public/ico.png"
+      "icon": "build/icon.png"
     },
     "nsis": {
       "oneClick": false,
