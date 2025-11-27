@@ -50,9 +50,6 @@
    - 确保 `electron-builder` 的 `asar` 启用，并通过 `asarUnpack` 仅解压需要原始文件访问的模块。
    - 设定 `compression: "maximum"`，并在 `beforePack` 钩子执行 `npm prune --production` + `npm dedupe` 以剔除 dev 依赖与重复包。
 
-5. **图像资产优化**
-   - 使用 `pngquant` / `oxipng` 压缩 `build/logo256.png` 等静态图；若 UI 允许，优先使用矢量 `svg`。
-   - 通过自动化脚本在构建阶段生成多尺寸图标，避免在仓库中维护冗余位图。
 
 ---
 

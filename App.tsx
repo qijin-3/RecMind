@@ -4,7 +4,8 @@ import MacWindow from './components/MacWindow';
 import { useAudioRecorder } from './hooks/useAudioRecorder';
 import { Note, RecordingState } from './types';
 import { exportNotesToPDF } from './services/pdfService';
-import { X, Camera } from 'lucide-react';
+import X from 'lucide-react/icons/x';
+import Camera from 'lucide-react/icons/camera';
 import LanguageSwitcher from './components/LanguageSwitcher';
 import RecorderPanel from './components/RecorderPanel';
 import NotesPanel from './components/NotesPanel';
@@ -113,7 +114,8 @@ const App = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const isDesktopApp = Boolean(window.desktop);
+  const isDesktopEnvironment = () => typeof window !== 'undefined' && Boolean(window.desktop?.invoke);
+  const isDesktopApp = isDesktopEnvironment();
   type WindowControlAction = 'close' | 'minimize' | 'toggle-fullscreen';
 
   useEffect(() => {
@@ -325,9 +327,9 @@ const App = () => {
    * 根据运行环境将 Blob 保存到设备：桌面端使用原生保存对话框，Web 端回退到下载锚点。
    */
   const saveBlobToDevice = async (blob: Blob, fileName: string) => {
-    if (isDesktopApp && window.desktop?.invoke) {
+    if (isDesktopEnvironment()) {
       const buffer = await blob.arrayBuffer();
-      const response = await window.desktop.invoke('save-file', {
+      const response = await window.desktop!.invoke('save-file', {
         defaultPath: fileName,
         buffer,
       }) as { success?: boolean; canceled?: boolean; error?: string };

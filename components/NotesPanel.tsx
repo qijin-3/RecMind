@@ -2,7 +2,13 @@ import React, { useMemo, useRef, useCallback, useEffect } from 'react';
 import AutoSizer from 'react-virtualized-auto-sizer';
 import { VariableSizeList, ListChildComponentProps } from 'react-window';
 import { TFunction } from 'i18next';
-import { Download, Trash2, Pencil, X, Check, Plus, Image as ImageIcon } from 'lucide-react';
+import Download from 'lucide-react/icons/download';
+import Trash2 from 'lucide-react/icons/trash-2';
+import Pencil from 'lucide-react/icons/pencil';
+import X from 'lucide-react/icons/x';
+import Check from 'lucide-react/icons/check';
+import Plus from 'lucide-react/icons/plus';
+import ImageIcon from 'lucide-react/icons/image';
 import { Note } from '../types';
 
 const DEFAULT_ROW_HEIGHT = 180;

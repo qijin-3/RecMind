@@ -1,5 +1,5 @@
 import React from 'react';
-import { Minimize2 } from 'lucide-react';
+import Minimize2 from 'lucide-react/icons/minimize-2';
 
 interface MacWindowProps {
   children: React.ReactNode;

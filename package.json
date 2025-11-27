@@ -11,7 +11,10 @@
     "desktop:dev": "VITE_DEV_SERVER_URL=http://localhost:3000 concurrently -k \"npm:dev\" \"wait-on http://localhost:3000 && electron --enable-logging electron/main.js\"",
     "desktop:build": "npm run build && electron-builder",
     "desktop:build:mac": "npm run build && electron-builder --mac",
-    "desktop:build:win": "npm run build && electron-builder --win"
+    "desktop:build:mac-arm64": "npm run build && electron-builder --mac --arm64",
+    "desktop:build:mac-x64": "npm run build && electron-builder --mac --x64",
+    "desktop:build:win": "npm run build && electron-builder --win",
+    "desktop:build:win-x64": "npm run build && electron-builder --win --x64"
   },
   "dependencies": {
     "html2canvas": "^1.4.1",
@@ -38,13 +41,25 @@
     "wait-on": "^9.0.3"
   },
   "build": {
+    "asar": true,
+    "asarUnpack": [],
+    "compression": "maximum",
     "appId": "com.recmind.desktop",
     "productName": "RecMind",
     "files": [
       "dist/**/*",
       "electron/**/*",
-      "package.json"
+      "package.json",
+      "!**/node_modules/**/examples{,/**}",
+      "!**/node_modules/**/{test,tests,__tests__}{,/**}",
+      "!**/node_modules/**/benchmark{,/**}",
+      "!**/locales/*.pak",
+      "!**/swiftshader{,/**}",
+      "!**/vk_swiftshader_icd.json",
+      "!**/vk_swiftshader.dll",
+      "!**/vulkan-1.dll"
     ],
+    "beforePack": "electron/scripts/beforePack.cjs",
     "directories": {
       "output": "release",
       "buildResources": "build"

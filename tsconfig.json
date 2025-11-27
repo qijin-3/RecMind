@@ -18,9 +18,13 @@
     "moduleDetection": "force",
     "allowJs": true,
     "jsx": "react-jsx",
+    "baseUrl": ".",
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "lucide-react/icons/*": [
+        "./node_modules/lucide-react/dist/esm/icons/*"
       ]
     },
     "allowImportingTsExtensions": true,

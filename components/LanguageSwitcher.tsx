@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown } from 'lucide-react';
+import ChevronDown from 'lucide-react/icons/chevron-down';
 
 interface LanguageSwitcherProps {
   currentLanguage: 'zh' | 'en';

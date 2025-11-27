@@ -1,6 +1,10 @@
 import React from 'react';
 import { TFunction } from 'i18next';
-import { Monitor, Maximize2, Pause, Play, Camera } from 'lucide-react';
+import Monitor from 'lucide-react/icons/monitor';
+import Maximize2 from 'lucide-react/icons/maximize-2';
+import Pause from 'lucide-react/icons/pause';
+import Play from 'lucide-react/icons/play';
+import Camera from 'lucide-react/icons/camera';
 import { RecordingState } from '../types';
 import LazyVisualizer from './LazyVisualizer';
 

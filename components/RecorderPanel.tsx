@@ -1,6 +1,14 @@
 import React from 'react';
 import { TFunction } from 'i18next';
-import { Mic, Monitor, Download, Trash2, FileText, Camera, Pause, Play, StopCircle } from 'lucide-react';
+import Mic from 'lucide-react/icons/mic';
+import Monitor from 'lucide-react/icons/monitor';
+import Download from 'lucide-react/icons/download';
+import Trash2 from 'lucide-react/icons/trash-2';
+import FileText from 'lucide-react/icons/file-text';
+import Camera from 'lucide-react/icons/camera';
+import Pause from 'lucide-react/icons/pause';
+import Play from 'lucide-react/icons/play';
+import StopCircle from 'lucide-react/icons/stop-circle';
 import { RecordingState } from '../types';
 import LazyVisualizer from './LazyVisualizer';
 
