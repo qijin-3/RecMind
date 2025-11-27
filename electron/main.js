@@ -1,6 +1,7 @@
-import { app, BrowserWindow, ipcMain, desktopCapturer, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, desktopCapturer, screen, dialog } from 'electron';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { writeFile } from 'node:fs/promises';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const IS_DEV = process.env.NODE_ENV === 'development' || !app.isPackaged;
@@ -224,6 +225,41 @@ function registerIpcHandlers() {
     }
     const alwaysOnTop = payload?.alwaysOnTop === true;
     mainWindow.setAlwaysOnTop(alwaysOnTop, 'floating', 1);
+  });
+
+  ipcMain.handle('save-file', async (_event, payload) => {
+    try {
+      const defaultPath = payload?.defaultPath || 'RecMind';
+      const rawBuffer = payload?.buffer;
+      if (!rawBuffer) {
+        throw new Error('缺少文件数据');
+      }
+
+      let dataBuffer = null;
+      if (rawBuffer instanceof ArrayBuffer) {
+        dataBuffer = Buffer.from(new Uint8Array(rawBuffer));
+      } else if (ArrayBuffer.isView(rawBuffer)) {
+        dataBuffer = Buffer.from(rawBuffer.buffer);
+      } else if (rawBuffer?.type === 'Buffer' && Array.isArray(rawBuffer?.data)) {
+        dataBuffer = Buffer.from(rawBuffer.data);
+      } else {
+        throw new Error('不支持的文件数据类型');
+      }
+
+      const { canceled, filePath } = await dialog.showSaveDialog({
+        defaultPath,
+      });
+
+      if (canceled || !filePath) {
+        return { success: false, canceled: true };
+      }
+
+      await writeFile(filePath, dataBuffer);
+      return { success: true, filePath };
+    } catch (error) {
+      console.error('保存文件失败:', error);
+      return { success: false, error: error?.message ?? String(error) };
+    }
   });
 
   /**

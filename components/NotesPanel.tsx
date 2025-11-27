@@ -1,7 +1,11 @@
-import React from 'react';
+import React, { useMemo, useRef, useCallback, useEffect } from 'react';
+import AutoSizer from 'react-virtualized-auto-sizer';
+import { VariableSizeList, ListChildComponentProps } from 'react-window';
 import { TFunction } from 'i18next';
 import { Download, Trash2, Pencil, X, Check, Plus, Image as ImageIcon } from 'lucide-react';
 import { Note } from '../types';
+
+const DEFAULT_ROW_HEIGHT = 180;
 
 interface NotesPanelProps {
   t: TFunction;
@@ -22,13 +26,23 @@ interface NotesPanelProps {
   onCurrentNoteChange: (value: string) => void;
   onImageUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   fileInputRef: React.RefObject<HTMLInputElement>;
-  notesEndRef: React.RefObject<HTMLDivElement>;
   formatTime: (seconds: number) => string;
 }
 
-/**
- * 笔记面板，展示录音过程中的文字与图片笔记，并提供编辑与导出功能。
- */
+type ListItemData = {
+  notes: Note[];
+  editingNoteId: string | null;
+  editText: string;
+  formatTime: (seconds: number) => string;
+  t: TFunction;
+  onStartEdit: (note: Note) => void;
+  onCancelEdit: () => void;
+  onSaveEdit: (id: string) => void;
+  onDeleteNote: (id: string) => void;
+  onImageClick: (url: string | null) => void;
+  onEditTextChange: (value: string) => void;
+};
+
 const NotesPanel: React.FC<NotesPanelProps> = ({
   t,
   notes,
@@ -48,10 +62,153 @@ const NotesPanel: React.FC<NotesPanelProps> = ({
   onCurrentNoteChange,
   onImageUpload,
   fileInputRef,
-  notesEndRef,
   formatTime,
 }) => {
+  const listRef = useRef<VariableSizeList<ListItemData>>(null);
+  const sizeMapRef = useRef<Record<string, number>>({});
   const isInputDisabled = !isRecordingActive && notes.length === 0 && !audioBlob;
+
+  const getItemSize = useCallback(
+    (index: number) => {
+      const note = notes[index];
+      if (!note) return DEFAULT_ROW_HEIGHT;
+      return sizeMapRef.current[note.id] ?? DEFAULT_ROW_HEIGHT;
+    },
+    [notes]
+  );
+
+  const setSize = useCallback((index: number, id: string, size: number) => {
+    if (sizeMapRef.current[id] !== size) {
+      sizeMapRef.current[id] = size;
+      listRef.current?.resetAfterIndex(index);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (notes.length) {
+      listRef.current?.scrollToItem(notes.length - 1, 'end');
+    }
+  }, [notes.length]);
+
+  const listData = useMemo<ListItemData>(
+    () => ({
+      notes,
+      editingNoteId,
+      editText,
+      formatTime,
+      t,
+      onStartEdit,
+      onCancelEdit,
+      onSaveEdit,
+      onDeleteNote,
+      onImageClick,
+      onEditTextChange,
+    }),
+    [
+      notes,
+      editingNoteId,
+      editText,
+      formatTime,
+      t,
+      onStartEdit,
+      onCancelEdit,
+      onSaveEdit,
+      onDeleteNote,
+      onImageClick,
+      onEditTextChange,
+    ]
+  );
+
+  const renderRow = useCallback(
+    ({ index, style, data }: ListChildComponentProps<ListItemData>) => {
+      const note = data.notes[index];
+      if (!note) return null;
+
+      const measureRef = (node: HTMLDivElement | null) => {
+        if (node) {
+          const height = node.getBoundingClientRect().height;
+          setSize(index, note.id, height);
+        }
+      };
+
+      return (
+        <div style={style}>
+          <div ref={measureRef} className="relative group pl-10 pr-4 py-1 min-h-[2rem] hover:bg-yellow-100/30 transition-colors">
+            <div className="absolute left-1 top-2 font-mono text-[8px] text-gray-400">
+              {data.formatTime(note.timestamp / 1000)}
+            </div>
+
+            {note.imageUrl ? (
+              <div className="my-2 p-1 bg-white shadow-sm border border-gray-200 inline-block transform -rotate-1 relative group">
+                <img
+                  src={note.imageUrl}
+                  alt="Attachment"
+                  loading="lazy"
+                  className="max-h-32 cursor-pointer hover:opacity-90 transition-opacity"
+                  onClick={() => data.onImageClick(note.imageUrl || null)}
+                />
+                <button
+                  onClick={e => {
+                    e.stopPropagation();
+                    data.onDeleteNote(note.id);
+                  }}
+                  className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-opacity shadow-md z-10"
+                  title={data.t('common.delete')}
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            ) : null}
+
+            {note.text.trim() && (
+              <>
+                {data.editingNoteId === note.id ? (
+                  <div className="relative z-20 mt-1">
+                    <textarea
+                      value={data.editText}
+                      onChange={e => data.onEditTextChange(e.target.value)}
+                      className="w-full bg-white/80 p-1 font-serif text-base leading-8 border border-blue-300 outline-none shadow-sm rounded-sm"
+                      rows={3}
+                      autoFocus
+                    />
+                    <div className="flex justify-end gap-2 mt-2">
+                      <button onClick={data.onCancelEdit} className="p-1 hover:bg-gray-200 rounded">
+                        <X size={14} />
+                      </button>
+                      <button onClick={() => data.onSaveEdit(note.id)} className="p-1 text-green-600 hover:bg-green-100 rounded">
+                        <Check size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="relative group">
+                    <p className="font-serif text-base text-gray-800 leading-[2rem] break-words whitespace-pre-wrap">{note.text}</p>
+                    <div className="absolute -right-2 top-1 opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity z-10">
+                      <button
+                        onClick={() => data.onStartEdit(note)}
+                        className="text-gray-400 hover:text-blue-600 p-1 bg-white/90 rounded shadow-sm"
+                        title={data.t('common.edit')}
+                      >
+                        <Pencil size={12} />
+                      </button>
+                      <button
+                        onClick={() => data.onDeleteNote(note.id)}
+                        className="text-gray-400 hover:text-red-600 p-1 bg-white/90 rounded shadow-sm"
+                        title={data.t('common.delete')}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      );
+    },
+    [setSize]
+  );
 
   return (
     <div className="flex-1 w-full relative flex flex-col shadow-[inset_0_10px_20px_rgba(0,0,0,0.1)] z-10 animate-in fade-in slide-in-from-top-4 duration-300 min-h-0 overflow-hidden">
@@ -78,88 +235,30 @@ const NotesPanel: React.FC<NotesPanelProps> = ({
         <div className="absolute inset-0 paper-lines pointer-events-none opacity-80" />
         <div className="absolute left-8 top-0 bottom-0 w-[2px] bg-red-200/50 pointer-events-none" />
 
-        <div className="flex-1 overflow-y-auto p-0 relative min-h-0">
-          <div className="min-h-full pb-16">
-            {notes.length === 0 && (
-              <div className="pt-10 text-center font-serif italic text-gray-400 pl-8 pr-4 text-sm">
-                {t('common.startTakingNotes')}
-              </div>
-            )}
-            {notes.map(note => (
-              <div key={note.id} className="relative group pl-10 pr-4 py-1 min-h-[2rem] hover:bg-yellow-100/30 transition-colors">
-                <div className="absolute left-1 top-2 font-mono text-[8px] text-gray-400">
-                  {formatTime(note.timestamp / 1000)}
-                </div>
-
-                {note.imageUrl ? (
-                  <div className="my-2 p-1 bg-white shadow-sm border border-gray-200 inline-block transform -rotate-1 relative group">
-                    <img
-                      src={note.imageUrl}
-                      alt="Attachment"
-                      className="max-h-32 cursor-pointer hover:opacity-90 transition-opacity"
-                      onClick={() => onImageClick(note.imageUrl || null)}
-                    />
-                    <button
-                      onClick={e => {
-                        e.stopPropagation();
-                        onDeleteNote(note.id);
-                      }}
-                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-opacity shadow-md z-10"
-                      title={t('common.delete')}
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                ) : null}
-
-                {note.text.trim() && (
-                  <>
-                    {editingNoteId === note.id ? (
-                      <div className="relative z-20 mt-1">
-                        <textarea
-                          value={editText}
-                          onChange={e => onEditTextChange(e.target.value)}
-                          className="w-full bg-white/80 p-1 font-serif text-base leading-8 border border-blue-300 outline-none shadow-sm rounded-sm"
-                          rows={3}
-                          autoFocus
-                        />
-                        <div className="flex justify-end gap-2 mt-2">
-                          <button onClick={onCancelEdit} className="p-1 hover:bg-gray-200 rounded">
-                            <X size={14} />
-                          </button>
-                          <button onClick={() => onSaveEdit(note.id)} className="p-1 text-green-600 hover:bg-green-100 rounded">
-                            <Check size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="relative group">
-                        <p className="font-serif text-base text-gray-800 leading-[2rem] break-words whitespace-pre-wrap">{note.text}</p>
-                        <div className="absolute -right-2 top-1 opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity z-10">
-                          <button
-                            onClick={() => onStartEdit(note)}
-                            className="text-gray-400 hover:text-blue-600 p-1 bg-white/90 rounded shadow-sm"
-                            title={t('common.edit')}
-                          >
-                            <Pencil size={12} />
-                          </button>
-                          <button
-                            onClick={() => onDeleteNote(note.id)}
-                            className="text-gray-400 hover:text-red-600 p-1 bg-white/90 rounded shadow-sm"
-                            title={t('common.delete')}
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            ))}
-            <div ref={notesEndRef} />
+        {notes.length === 0 ? (
+          <div className="flex-1 pt-10 text-center font-serif italic text-gray-400 pl-8 pr-4 text-sm">
+            {t('common.startTakingNotes')}
           </div>
-        </div>
+        ) : (
+          <div className="flex-1 min-h-0">
+            <AutoSizer>
+              {({ height, width }) => (
+                <VariableSizeList
+                  height={height}
+                  width={width}
+                  itemCount={notes.length}
+                  itemSize={getItemSize}
+                  estimatedItemSize={DEFAULT_ROW_HEIGHT}
+                  ref={listRef}
+                  overscanCount={3}
+                  itemData={listData}
+                >
+                  {renderRow}
+                </VariableSizeList>
+              )}
+            </AutoSizer>
+          </div>
+        )}
       </div>
 
       <div

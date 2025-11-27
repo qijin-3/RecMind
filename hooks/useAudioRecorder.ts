@@ -48,23 +48,35 @@ export const useAudioRecorder = (): UseAudioRecorderReturn => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const streamsRef = useRef<MediaStream[]>([]);
   const chunksRef = useRef<Blob[]>([]);
-  const startTimeRef = useRef<number>(0);
-  const timerIntervalRef = useRef<number | null>(null);
+  const frameStartRef = useRef<number>(0);
+  const timerRafRef = useRef<number | null>(null);
+  const durationRef = useRef(0);
+
+  useEffect(() => {
+    durationRef.current = duration;
+  }, [duration]);
   const mimeTypeRef = useRef<string>(''); // 保存当前录制使用的 MIME 类型
 
-  // Timer logic
+  // Timer logic based on requestAnimationFrame, synchronized with performance.now
   useEffect(() => {
     if (recordingState === RecordingState.RECORDING) {
-      const start = Date.now() - (duration * 1000);
-      startTimeRef.current = start;
-      timerIntervalRef.current = window.setInterval(() => {
-        setDuration(Math.floor((Date.now() - start) / 1000));
-      }, 1000);
-    } else {
-      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      frameStartRef.current = performance.now() - durationRef.current * 1000;
+      const tick = () => {
+        const elapsed = performance.now() - frameStartRef.current;
+        setDuration(Math.floor(elapsed / 1000));
+        timerRafRef.current = requestAnimationFrame(tick);
+      };
+      timerRafRef.current = requestAnimationFrame(tick);
+    } else if (timerRafRef.current) {
+      cancelAnimationFrame(timerRafRef.current);
+      timerRafRef.current = null;
     }
+
     return () => {
-      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      if (timerRafRef.current) {
+        cancelAnimationFrame(timerRafRef.current);
+        timerRafRef.current = null;
+      }
     };
   }, [recordingState]);
 

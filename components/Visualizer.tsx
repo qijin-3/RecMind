@@ -8,89 +8,107 @@ interface VisualizerProps {
 const Visualizer: React.FC<VisualizerProps> = ({ analyser, isActive }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number | null>(null);
+  const dataArrayRef = useRef<Uint8Array | null>(null);
+  const cachedFrameRef = useRef<Uint8Array | null>(null);
+  const lastTimestampRef = useRef(0);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
-    
-    // Clear initial state
-    if (ctx && canvas) {
-         ctx.fillStyle = '#1f2937'; // Dark LCD background
-         ctx.fillRect(0, 0, canvas.width, canvas.height);
-         
-         // Draw grid/empty LEDs
-         drawGrid(ctx, canvas.width, canvas.height);
+
+    if (!canvas || !ctx) {
+      return;
     }
 
-    if (!isActive || !analyser || !ctx || !canvas) {
-        if (rafRef.current) cancelAnimationFrame(rafRef.current);
-        return;
+    ctx.fillStyle = '#1f2937';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawGrid(ctx, canvas.width, canvas.height);
+
+    if (!analyser) {
+      return;
     }
 
     const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
+    if (!dataArrayRef.current || dataArrayRef.current.length !== bufferLength) {
+      dataArrayRef.current = new Uint8Array(bufferLength);
+    }
 
-    const draw = () => {
-      rafRef.current = requestAnimationFrame(draw);
-      analyser.getByteFrequencyData(dataArray);
+    const targetFrameInterval = 1000 / 30; // 30fps
 
+    const renderVisualizer = (frequencySnapshot: Uint8Array) => {
       ctx.fillStyle = '#1f2937';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // We want about 30 columns for retro feel
+
       const numColumns = 32;
       const numRows = 10;
-      
       const colWidth = canvas.width / numColumns;
       const rowHeight = canvas.height / numRows;
-      
-      const gap = 2; 
-
-      // Sample the frequency data
-      const step = Math.floor(bufferLength / numColumns);
+      const gap = 2;
+      const step = Math.max(1, Math.floor(frequencySnapshot.length / numColumns));
 
       for (let i = 0; i < numColumns; i++) {
-        const value = dataArray[i * step];
+        const value = frequencySnapshot[Math.min(i * step, frequencySnapshot.length - 1)];
         const percent = value / 255;
         const activeRows = Math.floor(percent * numRows);
 
         for (let j = 0; j < numRows; j++) {
-            // Invert J because 0 is top
-            const currentRow = (numRows - 1) - j;
-            
-            if (j < activeRows) {
-                // Color Logic
-                if (j > numRows - 3) {
-                    ctx.fillStyle = '#ef4444'; // Red (Peak)
-                    ctx.shadowColor = '#ef4444';
-                } else if (j > numRows - 6) {
-                    ctx.fillStyle = '#eab308'; // Yellow (Mid)
-                    ctx.shadowColor = '#eab308';
-                } else {
-                    ctx.fillStyle = '#22c55e'; // Green (Low)
-                    ctx.shadowColor = '#22c55e';
-                }
-                ctx.shadowBlur = 4;
+          const currentRow = numRows - 1 - j;
+          if (j < activeRows) {
+            if (j > numRows - 3) {
+              ctx.fillStyle = '#ef4444';
+              ctx.shadowColor = '#ef4444';
+            } else if (j > numRows - 6) {
+              ctx.fillStyle = '#eab308';
+              ctx.shadowColor = '#eab308';
             } else {
-                 ctx.fillStyle = '#374151'; // Unlit LED
-                 ctx.shadowBlur = 0;
+              ctx.fillStyle = '#22c55e';
+              ctx.shadowColor = '#22c55e';
             }
+            ctx.shadowBlur = 4;
+          } else {
+            ctx.fillStyle = '#374151';
+            ctx.shadowBlur = 0;
+          }
 
-            ctx.fillRect(
-                i * colWidth + gap/2, 
-                currentRow * rowHeight + gap/2, 
-                colWidth - gap, 
-                rowHeight - gap
-            );
+          ctx.fillRect(
+            i * colWidth + gap / 2,
+            currentRow * rowHeight + gap / 2,
+            colWidth - gap,
+            rowHeight - gap
+          );
         }
       }
-      ctx.shadowBlur = 0; // Reset
+      ctx.shadowBlur = 0;
     };
 
-    draw();
+    const draw = (timestamp: number) => {
+      if (!isActive) {
+        if (cachedFrameRef.current) {
+          renderVisualizer(cachedFrameRef.current);
+        }
+        return;
+      }
+
+      if (timestamp - lastTimestampRef.current >= targetFrameInterval) {
+        lastTimestampRef.current = timestamp;
+        const dataArray = dataArrayRef.current!;
+        analyser.getByteFrequencyData(dataArray);
+        cachedFrameRef.current = new Uint8Array(dataArray);
+        renderVisualizer(dataArray);
+      }
+
+      rafRef.current = requestAnimationFrame(draw);
+    };
+
+    if (isActive) {
+      rafRef.current = requestAnimationFrame(draw);
+    } else if (cachedFrameRef.current) {
+      renderVisualizer(cachedFrameRef.current);
+    }
 
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
     };
   }, [analyser, isActive]);
 
@@ -113,7 +131,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ analyser, isActive }) => {
             );
         }
       }
-  }
+  };
 
   return (
     <canvas 

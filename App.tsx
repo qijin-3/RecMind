@@ -4,7 +4,6 @@ import MacWindow from './components/MacWindow';
 import { useAudioRecorder } from './hooks/useAudioRecorder';
 import { Note, RecordingState } from './types';
 import { exportNotesToPDF } from './services/pdfService';
-import type JSZipType from 'jszip';
 import { X, Camera } from 'lucide-react';
 import LanguageSwitcher from './components/LanguageSwitcher';
 import RecorderPanel from './components/RecorderPanel';
@@ -32,17 +31,44 @@ const RECORDING_STATE_HEIGHTS = {
 // 移除 PRE_RECORD_WINDOW，统一使用 default 布局高度
 const INVALID_FILENAME_CHARS = /[<>:"/\\|?*\x00-\x1F]/g;
 
-let jsZipConstructorPromise: Promise<JSZipType> | null = null;
-
-/**
- * 懒加载 JSZip 构造函数，避免主 bundle 直接引入重型依赖。
- */
-const loadJSZip = async (): Promise<JSZipType> => {
-  if (!jsZipConstructorPromise) {
-    jsZipConstructorPromise = import('jszip').then(module => module.default);
-  }
-  return jsZipConstructorPromise;
+type ExportWorkerJob = {
+  resolve: (blob: Blob) => void;
+  reject: (error: Error) => void;
 };
+
+let exportWorker: Worker | null = null;
+const exportWorkerJobs = new Map<string, ExportWorkerJob>();
+
+const ensureExportWorker = () => {
+  if (!exportWorker) {
+    exportWorker = new Worker(new URL('./workers/exportWorker.ts', import.meta.url), {
+      type: 'module',
+    });
+    exportWorker.onmessage = (event: MessageEvent<{ id: string; success: boolean; blob?: Blob; error?: string }>) => {
+      const job = exportWorkerJobs.get(event.data.id);
+      if (!job) return;
+      exportWorkerJobs.delete(event.data.id);
+      if (event.data.success && event.data.blob) {
+        job.resolve(event.data.blob);
+      } else {
+        job.reject(new Error(event.data.error || 'Worker execution failed'));
+      }
+    };
+    exportWorker.onerror = () => {
+      exportWorkerJobs.forEach(job => job.reject(new Error('Export worker error')));
+      exportWorkerJobs.clear();
+    };
+  }
+  return exportWorker;
+};
+
+const bundleFilesInWorker = (files: Array<{ name: string; blob: Blob }>) =>
+  new Promise<Blob>((resolve, reject) => {
+    const worker = ensureExportWorker();
+    const id = crypto.randomUUID();
+    exportWorkerJobs.set(id, { resolve, reject });
+    worker.postMessage({ id, action: 'bundleZip', payload: { files } });
+  });
 
 const App = () => {
   const { t, i18n } = useTranslation();
@@ -87,9 +113,18 @@ const App = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const notesEndRef = useRef<HTMLDivElement>(null);
   const isDesktopApp = Boolean(window.desktop);
   type WindowControlAction = 'close' | 'minimize' | 'toggle-fullscreen';
+
+  useEffect(() => {
+    return () => {
+      if (exportWorker) {
+        exportWorker.terminate();
+        exportWorker = null;
+      }
+      exportWorkerJobs.clear();
+    };
+  }, []);
 
   /**
    * 根据目标动作向 Electron 主进程发送窗口控制请求。
@@ -258,7 +293,7 @@ const App = () => {
    */
   const buildNotesPdfPayload = async () => {
     const dateStr = new Date().toLocaleDateString();
-    const attachments = notes
+    const attachments = orderedNotes
       .filter((note): note is Note & { imageUrl: string } => Boolean(note.imageUrl))
       .map(note => ({
         id: note.id,
@@ -273,7 +308,7 @@ const App = () => {
   };
 
   /**
-   * 统一处理 Blob 下载，避免重复的锚点创建代码。
+   * Web 环境统一处理 Blob 下载，避免重复的锚点创建代码。
    */
   const triggerBlobDownload = (blob: Blob, fileName: string) => {
     const url = URL.createObjectURL(blob);
@@ -284,6 +319,28 @@ const App = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  /**
+   * 根据运行环境将 Blob 保存到设备：桌面端使用原生保存对话框，Web 端回退到下载锚点。
+   */
+  const saveBlobToDevice = async (blob: Blob, fileName: string) => {
+    if (isDesktopApp && window.desktop?.invoke) {
+      const buffer = await blob.arrayBuffer();
+      const response = await window.desktop.invoke('save-file', {
+        defaultPath: fileName,
+        buffer,
+      }) as { success?: boolean; canceled?: boolean; error?: string };
+      if (response?.success) {
+        return true;
+      }
+      if (response?.canceled) {
+        return false;
+      }
+      throw new Error(response?.error || t('common.unknownError'));
+    }
+    triggerBlobDownload(blob, fileName);
+    return true;
   };
 
   const handleStart = async () => {
@@ -577,7 +634,7 @@ const App = () => {
   const handleExport = async () => {
     try {
       const { blob, fileName } = await buildNotesPdfPayload();
-      triggerBlobDownload(blob, fileName);
+      await saveBlobToDevice(blob, fileName);
     } catch (error) {
       console.error('Failed to export PDF', error);
       alert(`${t('common.pdfExportFailed')}，${t('common.retryLater')}`);
@@ -588,14 +645,16 @@ const App = () => {
    * 将录音直接下载。
    * 格式根据浏览器支持自动选择（M4A 或 WebM）。
    */
-  const handleDownloadAudio = () => {
+  const handleDownloadAudio = async () => {
     if (!audioBlob) return;
     try {
       const { blob, fileName } = buildAudioFilePayload();
-      triggerBlobDownload(blob, fileName);
-      const format = getFileExtensionFromMimeType(audioMimeType).toUpperCase();
-      setToastMessage(t('common.audioSaved', { format }));
-      setTimeout(() => setToastMessage(null), 2000);
+      const saved = await saveBlobToDevice(blob, fileName);
+      if (saved) {
+        const format = getFileExtensionFromMimeType(audioMimeType).toUpperCase();
+        setToastMessage(t('common.audioSaved', { format }));
+        setTimeout(() => setToastMessage(null), 2000);
+      }
     } catch (error) {
       console.error('Failed to export audio', error);
       const errorMessage = error instanceof Error ? error.message : t('common.unknownError');
@@ -610,21 +669,19 @@ const App = () => {
     if (!audioBlob) return;
     try {
       if (!hasNotes) {
-        handleDownloadAudio();
+        await handleDownloadAudio();
         return;
       }
       
       const audioPayload = buildAudioFilePayload();
       // buildNotesPdfPayload 返回 Promise，需要 await
       const notesPayload = await buildNotesPdfPayload();
-      
-      const JSZip = await loadJSZip();
-      const zip = new JSZip();
-      zip.file(audioPayload.fileName, audioPayload.blob);
-      zip.file(notesPayload.fileName, notesPayload.blob);
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const zipBlob = await bundleFilesInWorker([
+        { name: audioPayload.fileName, blob: audioPayload.blob },
+        { name: notesPayload.fileName, blob: notesPayload.blob },
+      ]);
       const zipFileName = buildSafeFileName(audioPayload.baseFileName, 'zip');
-      triggerBlobDownload(zipBlob, zipFileName);
+      await saveBlobToDevice(zipBlob, zipFileName);
       setToastMessage(t('common.fileSaved'));
       setTimeout(() => setToastMessage(null), 2000);
     } catch (error) {
@@ -656,12 +713,6 @@ const App = () => {
   const handleDeleteNote = (id: string) => {
     setNotes(prev => prev.filter(n => n.id !== id));
   };
-
-  useEffect(() => {
-    if (!editingNoteId && isNotesOpen) {
-        notesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [notes, editingNoteId, isNotesOpen]);
 
   // Handle Window Size changes based on modes
   const layoutKey = useMemo<'miniFloating' | 'minimized' | 'default' | 'notes'>(() => {
@@ -745,7 +796,8 @@ const App = () => {
     }
   }, [layoutKey, isPreRecordingState, getRecordingStateHeight]);
 
-  const hasNotes = notes.length > 0;
+  const orderedNotes = useMemo(() => [...notes].sort((a, b) => a.timestamp - b.timestamp), [notes]);
+  const hasNotes = orderedNotes.length > 0;
   const isRecordingActive = recordingState === RecordingState.RECORDING || recordingState === RecordingState.PAUSED;
   
   useEffect(() => {
@@ -886,7 +938,7 @@ const App = () => {
         {isNotesOpen && !isMinimized && (
           <NotesPanel
             t={t}
-            notes={notes}
+            notes={orderedNotes}
             editingNoteId={editingNoteId}
             editText={editText}
             currentNote={currentNote}
@@ -903,7 +955,6 @@ const App = () => {
             onCurrentNoteChange={setCurrentNote}
             onImageUpload={handleImageUpload}
             fileInputRef={fileInputRef}
-            notesEndRef={notesEndRef}
             formatTime={formatTime}
           />
         )}
@@ -913,7 +964,7 @@ const App = () => {
 
   return (
     <>
-      <PdfTemplate t={t} notes={notes} formatTime={formatTime} />
+      <PdfTemplate t={t} notes={orderedNotes} formatTime={formatTime} />
 
       {!isMiniFloatingMode && (
         isDesktopApp ? macWindowElement : (
