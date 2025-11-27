@@ -6,7 +6,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 function setupRendererBridge() {
   contextBridge.exposeInMainWorld('desktop', {
     platform: process.platform,
-    version: process.env.npm_package_version ?? '0.0.0',
+    version: process.env.npm_package_version ?? '0.1.1',
     send: (channel, payload) => ipcRenderer.send(channel, payload),
     on: (channel, listener) => {
       ipcRenderer.on(channel, listener);
