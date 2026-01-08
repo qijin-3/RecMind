@@ -1,7 +1,7 @@
 {
   "name": "recmind",
   "private": true,
-  "version": "0.1.1",
+  "version": "1.1.2",
   "type": "module",
   "main": "electron/main.js",
   "scripts": {
@@ -14,7 +14,8 @@
     "desktop:build:mac-arm64": "npm run build && electron-builder --mac --arm64",
     "desktop:build:mac-x64": "npm run build && electron-builder --mac --x64",
     "desktop:build:win": "npm run build && electron-builder --win",
-    "desktop:build:win-x64": "npm run build && electron-builder --win --x64"
+    "desktop:build:win-x64": "npm run build && electron-builder --win --x64",
+    "desktop:build:win-arm64": "npm run build && electron-builder --win --arm64"
   },
   "dependencies": {
     "html2canvas": "^1.4.1",
@@ -82,7 +83,7 @@
           "target": "nsis",
           "arch": [
             "x64",
-            "ia32"
+            "arm64"
           ]
         }
       ],
@@ -91,6 +92,11 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "qijin-3",
+      "repo": "RecMind"
     }
   }
 }
