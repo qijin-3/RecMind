@@ -30,7 +30,8 @@ const RECORDING_STATE_HEIGHTS = {
 } as const;
 
 // 移除 PRE_RECORD_WINDOW，统一使用 default 布局高度
-const INVALID_FILENAME_CHARS = /[<>:"/\\|?*\x00-\x1F]/g;
+// 注意：冒号(:)被保留用于日期和时间分隔，系统会自动处理（macOS 会转换为斜杠）
+const INVALID_FILENAME_CHARS = /[<>"/\\|?*\x00-\x1F]/g;
 
 type ExportWorkerJob = {
   resolve: (blob: Blob) => void;
@@ -204,6 +205,36 @@ const App = () => {
   };
 
   /**
+   * 生成东八区时间格式的文件名时间戳
+   * 格式：YYYY-MM-DD:HH-MM-SS
+   * @returns 格式化的时间字符串
+   */
+  const getCSTTimestamp = () => {
+    const now = new Date();
+    // 使用 Intl.DateTimeFormat 获取东八区时间
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+    
+    const parts = formatter.formatToParts(now);
+    const year = parts.find(p => p.type === 'year')?.value || '';
+    const month = parts.find(p => p.type === 'month')?.value || '';
+    const day = parts.find(p => p.type === 'day')?.value || '';
+    const hours = parts.find(p => p.type === 'hour')?.value || '';
+    const minutes = parts.find(p => p.type === 'minute')?.value || '';
+    const seconds = parts.find(p => p.type === 'second')?.value || '';
+    
+    return `${year}-${month}-${day}:${hours}-${minutes}-${seconds}`;
+  };
+
+  /**
    * 将 DataView 中写入 ASCII 字符串。
    */
   const writeStringToDataView = (view: DataView, offset: number, text: string) => {
@@ -278,12 +309,17 @@ const App = () => {
   /**
    * 生成当前音频文件的 Blob 及文件名。
    * 直接使用录制的格式，无需转换。
+   * 根据当前语言选择文件名前缀：中文使用"录音"，英文使用"Recording"。
    */
   const buildAudioFilePayload = () => {
     if (!audioBlob) {
       throw new Error(t('errors.noAudioAvailable'));
     }
-    const baseFileName = `recording-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+    // 根据当前语言选择文件名前缀
+    const prefix = i18n.language === 'zh' ? '录音' : 'Recording';
+    // 将时间戳中的英文冒号替换为中文冒号，以符合文件命名要求
+    const timestamp = getCSTTimestamp().replace(':', '：');
+    const baseFileName = `${prefix}${timestamp}`;
     const extension = getFileExtensionFromMimeType(audioMimeType);
     const fileName = buildSafeFileName(baseFileName, extension);
     return { blob: audioBlob, fileName, baseFileName };
@@ -291,10 +327,15 @@ const App = () => {
 
   /**
    * 生成当前笔记的 PDF Blob 及文件名，并附带原图以保留分辨率。
+   * 根据当前语言选择文件名前缀：中文使用"笔记"，英文使用"Note"。
    * @returns Promise<{blob: Blob, fileName: string}>
    */
   const buildNotesPdfPayload = async () => {
-    const dateStr = new Date().toLocaleDateString();
+    // 使用东八区时间格式化，格式：YYYY-MM-DD:HH-MM-SS
+    // 将时间戳中的英文冒号替换为中文冒号，以符合文件命名要求
+    const dateTimeStr = getCSTTimestamp().replace(':', '：');
+    // 根据当前语言选择文件名前缀
+    const prefix = i18n.language === 'zh' ? '笔记' : 'Note';
     const attachments = orderedNotes
       .filter((note): note is Note & { imageUrl: string } => Boolean(note.imageUrl))
       .map(note => ({
@@ -304,7 +345,7 @@ const App = () => {
       }));
     return await exportNotesToPDF(
       'pdf-export-content',
-      `${t('common.meetingMinutes')} ${dateStr}`,
+      `${prefix}${dateTimeStr}`,
       { attachments }
     );
   };
